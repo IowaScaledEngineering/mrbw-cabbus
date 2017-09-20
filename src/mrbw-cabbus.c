@@ -1,8 +1,8 @@
 /*************************************************************************
-Title:    MRBW-XPRESSNET MRBee XpressNet Interface
+Title:    MRBW-CABBUS MRBee Cab Bus Interface
 Authors:  Michael D. Petersen <railfan@drgw.net>
           Nathan D. Holmes <maverick@drgw.net>
-File:     mrbw-xpressnet.c
+File:     mrbw-cabbus.c
 License:  GNU General Public License v3
 
 LICENSE:
@@ -28,7 +28,7 @@ LICENSE:
 #include <util/delay.h>
 #include <util/atomic.h>
 #include "mrbee.h"
-#include "xpressnet.h"
+#include "cabbus.h"
 
 #ifdef DEBUG
 void debugInit(void)
@@ -60,10 +60,10 @@ void debug6(uint8_t val)
 MRBusPacket mrbusTxPktBufferArray[MRBUS_TX_BUFFER_DEPTH];
 MRBusPacket mrbusRxPktBufferArray[MRBUS_RX_BUFFER_DEPTH];
 
-#define XPRESSNET_TX_BUFFER_DEPTH 16
+#define CABBUS_TX_BUFFER_DEPTH 16
 
-XpressNetPacket xpressnetTxPktBufferArray[XPRESSNET_TX_BUFFER_DEPTH];
-uint8_t xpressnetBuffer[XPRESSNET_BUFFER_SIZE];
+CabBusPacket cabBusTxPktBufferArray[CABBUS_TX_BUFFER_DEPTH];
+uint8_t cabBusBuffer[CABBUS_BUFFER_SIZE];
 
 uint8_t mrbus_dev_addr = 0;
 
@@ -73,7 +73,7 @@ void createVersionPacket(uint8_t destAddr, uint8_t *buf)
 {
 	buf[MRBUS_PKT_DEST] = destAddr;
 	buf[MRBUS_PKT_SRC] = mrbus_dev_addr;
-	buf[MRBUS_PKT_LEN] = 20;
+	buf[MRBUS_PKT_LEN] = 18;
 	buf[MRBUS_PKT_TYPE] = 'v';
 	buf[6]  = MRBUS_VERSION_WIRELESS;
 	// Software Revision
@@ -82,14 +82,12 @@ void createVersionPacket(uint8_t destAddr, uint8_t *buf)
 	buf[9]  = 0xFF & (GIT_REV); // Software Revision
 	buf[10]  = HWREV_MAJOR; // Hardware Major Revision
 	buf[11]  = HWREV_MINOR; // Hardware Minor Revision
-	buf[12] = 'X';
-	buf[13] = 'P';
-	buf[14] = 'R';
-	buf[15] = 'E';
-	buf[16] = 'S';
-	buf[17] = 'N';
-	buf[18] = 'E';
-	buf[19] = 'T';
+	buf[12] = 'C';
+	buf[13] = 'A';
+	buf[14] = 'B';
+	buf[15] = 'B';
+	buf[16] = 'U';
+	buf[17] = 'S';
 }
 
 void PktHandler(void)
@@ -203,6 +201,7 @@ void PktHandler(void)
 
 		uint8_t statusFlags = rxBuffer[13];
 
+/*  FIXME!
 		// Send Speed/Direction
 		xpressnetBuffer[0] = 0xE4;  // Speed & Direction, 128 speed steps
 		xpressnetBuffer[1] = 0x13;
@@ -246,6 +245,7 @@ void PktHandler(void)
 		xpressnetBuffer[3] = locoAddress & 0xFF;
 		xpressnetBuffer[4] = (functions >> 21) & 0xFF;  // F28 - F21
 		xpressnetPktQueuePush(&xpressnetTxQueue, xpressnetBuffer, 5);
+*/
 	}
 
 	//*************** END PACKET HANDLER  ***************
@@ -315,7 +315,7 @@ void readDipSwitches(void)
 	uint8_t switches = PINC >> 3;
 	if(oldSwitches != switches)
 	{
-		xpressnetInit(switches);
+		cabBusInit(switches);
 		mrbus_dev_addr = 0xD0 + switches;
 		oldSwitches = switches;
 	}
@@ -334,9 +334,9 @@ int main(void)
 	mrbusPktQueueInitialize(&mrbeeTxQueue, mrbusTxPktBufferArray, MRBUS_TX_BUFFER_DEPTH);
 	mrbusPktQueueInitialize(&mrbeeRxQueue, mrbusRxPktBufferArray, MRBUS_RX_BUFFER_DEPTH);
 
-	xpressnetPktQueueInitialize(&xpressnetTxQueue, xpressnetTxPktBufferArray, XPRESSNET_TX_BUFFER_DEPTH);
+	cabBusPktQueueInitialize(&cabBusTxQueue, cabBusTxPktBufferArray, CABBUS_TX_BUFFER_DEPTH);
 
-	readDipSwitches();  // xpressnetInit will be called here
+	readDipSwitches();  // cabBusInit will be called here
 	mrbeeInit();
 
 	sei();	
@@ -388,11 +388,11 @@ int main(void)
 #endif
 		}
 
-		if(xpressnetPktQueueDepth(&xpressnetTxQueue))
+		if(cabBusPktQueueDepth(&cabBusTxQueue))
 		{
 			// Packet pending, so queue it up for transmit
 			wdt_reset();
-			xpressnetTransmit();
+			cabBusTransmit();
 		}
 	}
 

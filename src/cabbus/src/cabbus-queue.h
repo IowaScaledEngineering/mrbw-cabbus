@@ -1,34 +1,34 @@
-#ifndef XPRESSNET_QUEUE_H
-#define XPRESSNET_QUEUE_H
+#ifndef CABBUS_QUEUE_H
+#define CABBUS_QUEUE_H
 
-#include "xpressnet-constants.h"
+#include "cabbus-constants.h"
 
 typedef struct 
 {
-	uint8_t pkt[XPRESSNET_BUFFER_SIZE];
+	uint8_t pkt[CABBUS_BUFFER_SIZE];
 	uint8_t len;
-} XpressNetPacket;
+} CabBusPacket;
 
 typedef struct
 {
 	volatile uint8_t headIdx;
 	volatile uint8_t tailIdx;
 	volatile uint8_t full;
-	XpressNetPacket* pktBufferArray;
+	CabBusPacket* pktBufferArray;
 	uint8_t pktBufferArraySz;
-} XpressNetPktQueue;
+} CabBusPktQueue;
 
-void xpressnetPktQueueInitialize(XpressNetPktQueue* q, XpressNetPacket* pktBufferArray, uint8_t pktBufferArraySz);
-uint8_t xpressnetPktQueueDepth(XpressNetPktQueue* q);
-uint8_t xpressnetPktQueuePush(XpressNetPktQueue* q, uint8_t* data, uint8_t dataLen);
-uint8_t xpressnetPktQueuePopInternal(XpressNetPktQueue* q, uint8_t* data, uint8_t dataLen, uint8_t snoop);
-uint8_t xpressnetPktQueueDrop(XpressNetPktQueue* q);
+void cabBusPktQueueInitialize(CabBusPktQueue* q, CabBusPacket* pktBufferArray, uint8_t pktBufferArraySz);
+uint8_t cabBusPktQueueDepth(CabBusPktQueue* q);
+uint8_t cabBusPktQueuePush(CabBusPktQueue* q, uint8_t* data, uint8_t dataLen);
+uint8_t cabBusPktQueuePopInternal(CabBusPktQueue* q, uint8_t* data, uint8_t dataLen, uint8_t snoop);
+uint8_t cabBusPktQueueDrop(CabBusPktQueue* q);
 
-#define xpressnetPktQueueFull(q) ((q)->full?1:0)
-#define xpressnetPktQueueEmpty(q) (0 == xpressnetPktQueueDepth(q))
+#define cabBusPktQueueFull(q) ((q)->full?1:0)
+#define cabBusPktQueueEmpty(q) (0 == cabBusPktQueueDepth(q))
 
-#define xpressnetPktQueuePeek(q, data, dataLen) xpressnetPktQueuePopInternal((q), (data), (dataLen), 1)
-#define xpressnetPktQueuePop(q, data, dataLen) xpressnetPktQueuePopInternal((q), (data), (dataLen), 0)
+#define cabBusPktQueuePeek(q, data, dataLen) cabBusPktQueuePopInternal((q), (data), (dataLen), 1)
+#define cabBusPktQueuePop(q, data, dataLen) cabBusPktQueuePopInternal((q), (data), (dataLen), 0)
 
 
 #endif

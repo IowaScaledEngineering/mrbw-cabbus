@@ -8,11 +8,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "xpressnet-constants.h"
-#include "xpressnet-queue.h"
-#include "xpressnet-macros.h"
+#include "cabbus-constants.h"
+#include "cabbus-queue.h"
+#include "cabbus-macros.h"
 
-void xpressnetPktQueueInitialize(XpressNetPktQueue* q, XpressNetPacket* pktBufferArray, uint8_t pktBufferArraySz)
+void cabBusPktQueueInitialize(CabBusPktQueue* q, CabBusPacket* pktBufferArray, uint8_t pktBufferArraySz)
 {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
@@ -20,11 +20,11 @@ void xpressnetPktQueueInitialize(XpressNetPktQueue* q, XpressNetPacket* pktBuffe
 		q->pktBufferArraySz = pktBufferArraySz;
 		q->headIdx = q->tailIdx = 0;
 		q->full = 0;
-		memset(q->pktBufferArray, 0, pktBufferArraySz * sizeof(XpressNetPacket));
+		memset(q->pktBufferArray, 0, pktBufferArraySz * sizeof(CabBusPacket));
 	}
 }
 
-uint8_t xpressnetPktQueueDepth(XpressNetPktQueue* q)
+uint8_t cabBusPktQueueDepth(CabBusPktQueue* q)
 {
 	uint8_t result = 0;
 	if(q->full)
@@ -37,17 +37,17 @@ uint8_t xpressnetPktQueueDepth(XpressNetPktQueue* q)
 	return(result);
 }
 
-uint8_t xpressnetPktQueuePush(XpressNetPktQueue* q, uint8_t* data, uint8_t dataLen)
+uint8_t cabBusPktQueuePush(CabBusPktQueue* q, uint8_t* data, uint8_t dataLen)
 {
 	uint8_t* pktPtr;
 	// If full, bail with a false
 	if (q->full)
 		return(0);
 
-	dataLen = min(XPRESSNET_BUFFER_SIZE, dataLen);
+	dataLen = min(CABBUS_BUFFER_SIZE, dataLen);
 	pktPtr = (uint8_t*)q->pktBufferArray[q->headIdx].pkt;
 	memcpy(pktPtr, data, dataLen);
-	memset(pktPtr+dataLen, 0, XPRESSNET_BUFFER_SIZE - dataLen);
+	memset(pktPtr+dataLen, 0, CABBUS_BUFFER_SIZE - dataLen);
 	q->pktBufferArray[q->headIdx].len = dataLen;
 
 	if( ++q->headIdx >= q->pktBufferArraySz )
@@ -60,10 +60,10 @@ uint8_t xpressnetPktQueuePush(XpressNetPktQueue* q, uint8_t* data, uint8_t dataL
 	return(1);
 }
 
-uint8_t xpressnetPktQueuePopInternal(XpressNetPktQueue* q, uint8_t* data, uint8_t dataLen, uint8_t snoop)
+uint8_t cabBusPktQueuePopInternal(CabBusPktQueue* q, uint8_t* data, uint8_t dataLen, uint8_t snoop)
 {
 	memset(data, 0, dataLen);
-	if (0 == xpressnetPktQueueDepth(q))
+	if (0 == cabBusPktQueueDepth(q))
 		return(0);
 
 	uint8_t length = min(dataLen, q->pktBufferArray[q->tailIdx].len);
@@ -83,9 +83,9 @@ uint8_t xpressnetPktQueuePopInternal(XpressNetPktQueue* q, uint8_t* data, uint8_
 	return(length);
 }
 
-uint8_t xpressnetPktQueueDrop(XpressNetPktQueue* q)
+uint8_t cabBusPktQueueDrop(CabBusPktQueue* q)
 {
-	if (0 == xpressnetPktQueueDepth(q))
+	if (0 == cabBusPktQueueDepth(q))
 		return(0);
 
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)

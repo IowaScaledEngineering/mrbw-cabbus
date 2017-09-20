@@ -1,8 +1,8 @@
 /*************************************************************************
-Title:    XpressNet Atmel AVR
+Title:    Cab Bus Atmel AVR
 Authors:  Michael Petersen <railfan@drgw.net>, Colorado, USA
           Nathan Holmes <maverick@drgw.net>, Colorado, USA
-File:     xpressnet-avr.h
+File:     cabbus.c
 License:  GNU General Public License v3
 
 LICENSE:
@@ -29,56 +29,56 @@ LICENSE:
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/atomic.h>
-#include "xpressnet.h"
+#include "cabbus.h"
 
-static volatile uint8_t xpressnetTxBuffer[XPRESSNET_BUFFER_SIZE];
-static volatile uint8_t xpressnetTxLength = 0;
-static volatile uint8_t xpressnetAddress = 0;
-static volatile uint8_t xpressnetTxIndex = 0;
-static volatile uint8_t xpressnetTxPending = 0;
-static volatile uint8_t xpressnetAckPending = 0;
-XpressNetPktQueue xpressnetTxQueue;
+static volatile uint8_t cabBusTxBuffer[CABBUS_BUFFER_SIZE];
+static volatile uint8_t cabBusTxLength = 0;
+static volatile uint8_t cabBusAddress = 0;
+static volatile uint8_t cabBusTxIndex = 0;
+static volatile uint8_t cabBusTxPending = 0;
+static volatile uint8_t cabBusAckPending = 0;
+CabBusPktQueue cabBusTxQueue;
 
 #include <util/parity.h>
 
 void enableTransmitter(void)
 {
-	XPRESSNET_UART_CSR_A |= _BV(XPRESSNET_TXC);
-	XPRESSNET_PORT |= _BV(XPRESSNET_TXE);
+	CABBUS_UART_CSR_A |= _BV(CABBUS_TXC);
+	CABBUS_PORT |= _BV(CABBUS_TXE);
 
 	// Disable receive interrupt while transmitting
-	XPRESSNET_UART_CSR_B &= ~_BV(XPRESSNET_RXCIE);
+	CABBUS_UART_CSR_B &= ~_BV(CABBUS_RXCIE);
 
 	// Enable transmit interrupt
-	XPRESSNET_UART_CSR_B |= _BV(XPRESSNET_UART_UDRIE);
+	CABBUS_UART_CSR_B |= _BV(CABBUS_UART_UDRIE);
 }
 
-ISR(XPRESSNET_UART_RX_INTERRUPT)
+ISR(CABBUS_UART_RX_INTERRUPT)
 {
 	uint8_t data = 0;
 
-	if (XPRESSNET_UART_CSR_A & XPRESSNET_RX_ERR_MASK)
+	if (CABBUS_UART_CSR_A & CABBUS_RX_ERR_MASK)
 	{
 			// Handle framing errors
-			data = XPRESSNET_UART_DATA;  // Clear the data register and discard
+			data = CABBUS_UART_DATA;  // Clear the data register and discard
 	}
     else
     {
-		if(XPRESSNET_UART_CSR_B & _BV(XPRESSNET_RXB8))
+		if(CABBUS_UART_CSR_B & _BV(CABBUS_RXB8))
 		{
 			// Bit 9 set, Address byte
-			data = XPRESSNET_UART_DATA;
+			data = CABBUS_UART_DATA;
 			uint8_t address = data & 0x1F;
-			if( (!parity_even_bit(data)) && (0x00 == (data & 0x60)) && (address == xpressnetAddress) )
+			if( (!parity_even_bit(data)) && (0x00 == (data & 0x60)) && (address == cabBusAddress) )
 			{
 				// Request Acknowledgement
-				xpressnetAckPending = 1;
+				cabBusAckPending = 1;
 				enableTransmitter();
 			}
 			else if( (!parity_even_bit(data)) && (0x40 == (data & 0x60)) )
 			{
 				// Normal inquiry
-				if(xpressnetTxPending && (address == xpressnetAddress))
+				if(cabBusTxPending && (address == cabBusAddress))
 				{
 					/* Enable transmitter since control over bus is assumed */
 					enableTransmitter();
@@ -87,143 +87,143 @@ ISR(XPRESSNET_UART_RX_INTERRUPT)
 		}
 		else
 		{
-			data = XPRESSNET_UART_DATA;  // Clear the data register and discard
+			data = CABBUS_UART_DATA;  // Clear the data register and discard
 		}
     }
 }
 
-ISR(XPRESSNET_UART_DONE_INTERRUPT)
+ISR(CABBUS_UART_DONE_INTERRUPT)
 {
 	// Transmit is complete: terminate
-	XPRESSNET_PORT &= ~_BV(XPRESSNET_TXE);  // Disable driver
+	CABBUS_PORT &= ~_BV(CABBUS_TXE);  // Disable driver
 	// Disable the various transmit interrupts
 	// Re-enable receive interrupt
-	XPRESSNET_UART_CSR_B = (XPRESSNET_UART_CSR_B & ~(_BV(XPRESSNET_TXCIE) | _BV(XPRESSNET_UART_UDRIE))) | _BV(XPRESSNET_RXCIE);
-	xpressnetTxPending = 0;
-	xpressnetAckPending = 0;
+	CABBUS_UART_CSR_B = (CABBUS_UART_CSR_B & ~(_BV(CABBUS_TXCIE) | _BV(CABBUS_UART_UDRIE))) | _BV(CABBUS_RXCIE);
+	cabBusTxPending = 0;
+	cabBusAckPending = 0;
 }
 
-ISR(XPRESSNET_UART_TX_INTERRUPT)
+ISR(CABBUS_UART_TX_INTERRUPT)
 {
 	uint8_t done = 0;
 	
-	if(xpressnetAckPending)
+	if(cabBusAckPending)
 	{
-		XPRESSNET_UART_DATA = 0x20;
-		xpressnetAckPending++;
-		done = (xpressnetAckPending > 2);
+		CABBUS_UART_DATA = 0x20;
+		cabBusAckPending++;
+		done = (cabBusAckPending > 2);
 	}
 	else
 	{
-		XPRESSNET_UART_DATA = xpressnetTxBuffer[xpressnetTxIndex++];  //  Get next byte and write to UART
-		done = (xpressnetTxIndex >= XPRESSNET_BUFFER_SIZE || xpressnetTxLength == xpressnetTxIndex);
+		CABBUS_UART_DATA = cabBusTxBuffer[cabBusTxIndex++];  //  Get next byte and write to UART
+		done = (cabBusTxIndex >= CABBUS_BUFFER_SIZE || cabBusTxLength == cabBusTxIndex);
 	}
 	if(done)
 	{
 		//  Done sending data to UART, disable UART interrupt
-		XPRESSNET_UART_CSR_A |= _BV(XPRESSNET_TXC);
-		XPRESSNET_UART_CSR_B &= ~_BV(XPRESSNET_UART_UDRIE);
-		XPRESSNET_UART_CSR_B |= _BV(XPRESSNET_TXCIE);
+		CABBUS_UART_CSR_A |= _BV(CABBUS_TXC);
+		CABBUS_UART_CSR_B &= ~_BV(CABBUS_UART_UDRIE);
+		CABBUS_UART_CSR_B |= _BV(CABBUS_TXCIE);
 	}
 }
 
-uint8_t xpressnetTransmit(void)
+uint8_t cabBusTransmit(void)
 {
 	uint8_t i;
 
-	if (xpressnetPktQueueEmpty(&xpressnetTxQueue))
+	if (cabBusPktQueueEmpty(&cabBusTxQueue))
 		return(0);
 
 	//  Return if bus already active.
-	if (xpressnetTxPending)
+	if (cabBusTxPending)
 		return(1);
 
-	xpressnetTxLength = xpressnetPktQueuePeek(&xpressnetTxQueue, (uint8_t*)xpressnetTxBuffer, sizeof(xpressnetTxBuffer));
+	cabBusTxLength = cabBusPktQueuePeek(&cabBusTxQueue, (uint8_t*)cabBusTxBuffer, sizeof(cabBusTxBuffer));
 
 	// If we have no packet length, or it's less than the header, just silently say we transmitted it
 	// On the AVRs, if you don't have any packet length, it'll never clear up on the interrupt routine
 	// and you'll get stuck in indefinite transmit busy
-	if (0 == xpressnetTxLength)
+	if (0 == cabBusTxLength)
 	{
-		xpressnetPktQueueDrop(&xpressnetTxQueue);
+		cabBusPktQueueDrop(&cabBusTxQueue);
 		return(0);
 	}
 
 	// First Calculate XOR
 	uint8_t xor_byte = 0;
-	for (i=0; i<=xpressnetTxLength; i++)
+	for (i=0; i<=cabBusTxLength; i++)
 	{
-		xor_byte ^= xpressnetTxBuffer[i];
+		xor_byte ^= cabBusTxBuffer[i];
 	}
-	xpressnetTxBuffer[xpressnetTxLength++] = xor_byte;  // Put it at the end and increment length so it gets transmitted
+	cabBusTxBuffer[cabBusTxLength++] = xor_byte;  // Put it at the end and increment length so it gets transmitted
 
-	xpressnetTxIndex = 0;
+	cabBusTxIndex = 0;
 	
-	xpressnetPktQueueDrop(&xpressnetTxQueue);
+	cabBusPktQueueDrop(&cabBusTxQueue);
 
-	xpressnetTxPending = 1;  // Notify RX routine that a packet is ready to go
+	cabBusTxPending = 1;  // Notify RX routine that a packet is ready to go
 
 	return(0);
 }
 
 
-void xpressnetInit(uint8_t addr)
+void cabBusInit(uint8_t addr)
 {
 #undef BAUD
-#define BAUD XPRESSNET_BAUD
+#define BAUD CABBUS_BAUD
 #include <util/setbaud.h>
 
-#if defined( XPRESSNET_AT90_UART )
+#if defined( CABBUS_AT90_UART )
 	// FIXME - probably need more stuff here
 	UBRR = (uint8_t)UBRRL_VALUE;
 
-#elif defined( XPRESSNET_ATMEGA_USART_SIMPLE )
-	XPRESSNET_UART_UBRR = UBRR_VALUE;
-	XPRESSNET_UART_CSR_A = (USE_2X)?_BV(U2X):0;
-	XPRESSNET_UART_CSR_B = 0;
-	XPRESSNET_UART_CSR_C = _BV(URSEL) | _BV(UCSZ1) | _BV(UCSZ0);
+#elif defined( CABBUS_ATMEGA_USART_SIMPLE )
+	CABBUS_UART_UBRR = UBRR_VALUE;
+	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X):0;
+	CABBUS_UART_CSR_B = 0;
+	CABBUS_UART_CSR_C = _BV(URSEL) | _BV(UCSZ1) | _BV(UCSZ0);
 	
-#elif defined( XPRESSNET_ATMEGA_USART0_SIMPLE )
-	XPRESSNET_UART_UBRR = UBRR_VALUE;
-	XPRESSNET_UART_CSR_A = (USE_2X)?_BV(U2X0):0;
-	XPRESSNET_UART_CSR_B = 0;
-	XPRESSNET_UART_CSR_C = _BV(URSEL0) | _BV(UCSZ01) | _BV(UCSZ00);
+#elif defined( CABBUS_ATMEGA_USART0_SIMPLE )
+	CABBUS_UART_UBRR = UBRR_VALUE;
+	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X0):0;
+	CABBUS_UART_CSR_B = 0;
+	CABBUS_UART_CSR_C = _BV(URSEL0) | _BV(UCSZ01) | _BV(UCSZ00);
 	
-#elif defined( XPRESSNET_ATMEGA_USART ) || defined ( XPRESSNET_ATMEGA_USART0 )
-	XPRESSNET_UART_UBRR = UBRR_VALUE;
-	XPRESSNET_UART_CSR_A = (USE_2X)?_BV(U2X0):0;
-	XPRESSNET_UART_CSR_B = _BV(UCSZ02);
-	XPRESSNET_UART_CSR_C = _BV(UCSZ01) | _BV(UCSZ00);
+#elif defined( CABBUS_ATMEGA_USART ) || defined ( CABBUS_ATMEGA_USART0 )
+	CABBUS_UART_UBRR = UBRR_VALUE;
+	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X0):0;
+	CABBUS_UART_CSR_B = _BV(UCSZ02);
+	CABBUS_UART_CSR_C = _BV(UCSZ01) | _BV(UCSZ00);
 
-#elif defined( XPRESSNET_ATTINY_USART )
+#elif defined( CABBUS_ATTINY_USART )
 	// Top four bits are reserved and must always be zero - see ATtiny2313 datasheet
 	// Also, H and L must be written independently, since they're non-adjacent registers
 	// on the attiny parts
-	XPRESSNET_UART_UBRRH = 0x0F & UBRRH_VALUE;
-	XPRESSNET_UART_UBRRL = UBRRL_VALUE;
-	XPRESSNET_UART_CSR_A = (USE_2X)?_BV(U2X):0;
-	XPRESSNET_UART_CSR_B = 0;
-	XPRESSNET_UART_CSR_C = _BV(UCSZ1) | _BV(UCSZ0);
+	CABBUS_UART_UBRRH = 0x0F & UBRRH_VALUE;
+	CABBUS_UART_UBRRL = UBRRL_VALUE;
+	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X):0;
+	CABBUS_UART_CSR_B = 0;
+	CABBUS_UART_CSR_C = _BV(UCSZ1) | _BV(UCSZ0);
 
-#elif defined ( XPRESSNET_ATMEGA_USART1 )
-	XPRESSNET_UART_UBRR = UBRR_VALUE;
-	XPRESSNET_UART_CSR_A = (USE_2X)?_BV(U2X1):0;
-	XPRESSNET_UART_CSR_B = _BV(UCSZ12);
-	XPRESSNET_UART_CSR_C = _BV(UCSZ11) | _BV(UCSZ10);
+#elif defined ( CABBUS_ATMEGA_USART1 )
+	CABBUS_UART_UBRR = UBRR_VALUE;
+	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X1):0;
+	CABBUS_UART_CSR_B = _BV(UCSZ12);
+	CABBUS_UART_CSR_C = _BV(UCSZ11) | _BV(UCSZ10);
 #else
 #error "UART for your selected part is not yet defined..."
 #endif
 
 #undef BAUD
 
-	xpressnetAddress = addr;
+	cabBusAddress = addr;
 
 	/* Enable USART receiver and transmitter and receive complete interrupt */
-	XPRESSNET_UART_CSR_B |= (_BV(XPRESSNET_RXCIE) | _BV(XPRESSNET_RXEN) | _BV(XPRESSNET_TXEN));
+	CABBUS_UART_CSR_B |= (_BV(CABBUS_RXCIE) | _BV(CABBUS_RXEN) | _BV(CABBUS_TXEN));
 
-	XPRESSNET_DDR &= ~(_BV(XPRESSNET_RX) | _BV(XPRESSNET_TX));  // Set RX and TX as inputs
-	XPRESSNET_DDR |= _BV(XPRESSNET_TXE);  // Set driver enable as output
-	XPRESSNET_PORT &= ~(_BV(XPRESSNET_TXE));  // Disable driver
+	CABBUS_DDR &= ~(_BV(CABBUS_RX) | _BV(CABBUS_TX));  // Set RX and TX as inputs
+	CABBUS_DDR |= _BV(CABBUS_TXE);  // Set driver enable as output
+	CABBUS_PORT &= ~(_BV(CABBUS_TXE));  // Disable driver
 }
 
 
