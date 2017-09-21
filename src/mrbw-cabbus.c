@@ -73,7 +73,7 @@ void createVersionPacket(uint8_t destAddr, uint8_t *buf)
 {
 	buf[MRBUS_PKT_DEST] = destAddr;
 	buf[MRBUS_PKT_SRC] = mrbus_dev_addr;
-	buf[MRBUS_PKT_LEN] = 18;
+	buf[MRBUS_PKT_LEN] = 19;
 	buf[MRBUS_PKT_TYPE] = 'v';
 	buf[6]  = MRBUS_VERSION_WIRELESS;
 	// Software Revision
@@ -85,9 +85,10 @@ void createVersionPacket(uint8_t destAddr, uint8_t *buf)
 	buf[12] = 'C';
 	buf[13] = 'A';
 	buf[14] = 'B';
-	buf[15] = 'B';
-	buf[16] = 'U';
-	buf[17] = 'S';
+	buf[15] = ' ';
+	buf[16] = 'B';
+	buf[17] = 'U';
+	buf[18] = 'S';
 }
 
 void PktHandler(void)
@@ -209,8 +210,6 @@ void PktHandler(void)
 		
 		uint8_t statusFlags = rxBuffer[13];
 
-		// FIXME: Make smarter.  Only send the response for the data elements that changed.  Build functions as 5 bytes here so they can be compared.
-		
 		// Send Speed/Direction
 		if(1 == speed)
 		{
