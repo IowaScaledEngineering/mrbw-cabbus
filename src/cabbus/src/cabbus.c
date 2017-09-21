@@ -29,6 +29,7 @@ LICENSE:
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/atomic.h>
+#include <util/delay.h>
 #include "cabbus.h"
 
 static volatile uint8_t cabBusTxBuffer[CABBUS_BUFFER_SIZE];
@@ -36,7 +37,6 @@ static volatile uint8_t cabBusTxLength = 0;
 static volatile uint8_t cabBusAddress = 0;
 static volatile uint8_t cabBusTxIndex = 0;
 static volatile uint8_t cabBusTxPending = 0;
-static volatile uint8_t cabBusAckPending = 0;
 CabBusPktQueue cabBusTxQueue;
 
 #include <util/parity.h>
@@ -56,38 +56,49 @@ void enableTransmitter(void)
 ISR(CABBUS_UART_RX_INTERRUPT)
 {
 	uint8_t data = 0;
+	static uint8_t byte_count = 0;
 
 	if (CABBUS_UART_CSR_A & CABBUS_RX_ERR_MASK)
 	{
-			// Handle framing errors
-			data = CABBUS_UART_DATA;  // Clear the data register and discard
+		// Handle framing errors
+		data = CABBUS_UART_DATA;  // Clear the data register and discard
 	}
     else
     {
-		if(CABBUS_UART_CSR_B & _BV(CABBUS_RXB8))
+		data = CABBUS_UART_DATA;
+		if((data & 0xC0) == 0x80)
 		{
-			// Bit 9 set, Address byte
-			data = CABBUS_UART_DATA;
-			uint8_t address = data & 0x1F;
-			if( (!parity_even_bit(data)) && (0x00 == (data & 0x60)) && (address == cabBusAddress) )
+			// It's (maybe) a ping
+			if((3 == byte_count) || (4 == byte_count) || (5 == byte_count))
 			{
-				// Request Acknowledgement
-				cabBusAckPending = 1;
-				enableTransmitter();
+				// Not a ping since bytes 3-5 are allowed to have the MSB set
+				byte_count++;
 			}
-			else if( (!parity_even_bit(data)) && (0x40 == (data & 0x60)) )
+			else
 			{
-				// Normal inquiry
-				if(cabBusTxPending && (address == cabBusAddress))
+				// Must be a ping, so process it
+				byte_count = 0;
+				uint8_t address = data & 0x3F;
+				if(address == cabBusAddress)
 				{
-					/* Enable transmitter since control over bus is assumed */
-					enableTransmitter();
+					// It's for us, so respond if anything is pending
+					if(cabBusTxPending)
+					{
+						_delay_us(300);  // 100us to bridge the 2nd stop bit (we're called after the first) + 100us minimum before response (see Cab Bus spec) + 100us guardband
+						enableTransmitter();
+					}
+				}
+				else
+				{
+					// Not for us, ignore (but still count bytes since someone else may respond as the next byte)
+					byte_count++;
 				}
 			}
 		}
 		else
 		{
-			data = CABBUS_UART_DATA;  // Clear the data register and discard
+			// Data response from someone else, ignore (but still count bytes)
+			byte_count++;
 		}
     }
 }
@@ -100,24 +111,15 @@ ISR(CABBUS_UART_DONE_INTERRUPT)
 	// Re-enable receive interrupt
 	CABBUS_UART_CSR_B = (CABBUS_UART_CSR_B & ~(_BV(CABBUS_TXCIE) | _BV(CABBUS_UART_UDRIE))) | _BV(CABBUS_RXCIE);
 	cabBusTxPending = 0;
-	cabBusAckPending = 0;
 }
 
 ISR(CABBUS_UART_TX_INTERRUPT)
 {
 	uint8_t done = 0;
 	
-	if(cabBusAckPending)
-	{
-		CABBUS_UART_DATA = 0x20;
-		cabBusAckPending++;
-		done = (cabBusAckPending > 2);
-	}
-	else
-	{
-		CABBUS_UART_DATA = cabBusTxBuffer[cabBusTxIndex++];  //  Get next byte and write to UART
-		done = (cabBusTxIndex >= CABBUS_BUFFER_SIZE || cabBusTxLength == cabBusTxIndex);
-	}
+	CABBUS_UART_DATA = cabBusTxBuffer[cabBusTxIndex++];  //  Get next byte and write to UART
+	done = (cabBusTxIndex >= CABBUS_BUFFER_SIZE || cabBusTxLength == cabBusTxIndex);
+
 	if(done)
 	{
 		//  Done sending data to UART, disable UART interrupt
@@ -151,7 +153,7 @@ uint8_t cabBusTransmit(void)
 
 	// First Calculate XOR
 	uint8_t xor_byte = 0;
-	for (i=0; i<=cabBusTxLength; i++)
+	for (i=0; i<cabBusTxLength; i++)
 	{
 		xor_byte ^= cabBusTxBuffer[i];
 	}
@@ -172,48 +174,10 @@ void cabBusInit(uint8_t addr)
 #undef BAUD
 #define BAUD CABBUS_BAUD
 #include <util/setbaud.h>
-
-#if defined( CABBUS_AT90_UART )
-	// FIXME - probably need more stuff here
-	UBRR = (uint8_t)UBRRL_VALUE;
-
-#elif defined( CABBUS_ATMEGA_USART_SIMPLE )
-	CABBUS_UART_UBRR = UBRR_VALUE;
-	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X):0;
-	CABBUS_UART_CSR_B = 0;
-	CABBUS_UART_CSR_C = _BV(URSEL) | _BV(UCSZ1) | _BV(UCSZ0);
-	
-#elif defined( CABBUS_ATMEGA_USART0_SIMPLE )
 	CABBUS_UART_UBRR = UBRR_VALUE;
 	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X0):0;
 	CABBUS_UART_CSR_B = 0;
-	CABBUS_UART_CSR_C = _BV(URSEL0) | _BV(UCSZ01) | _BV(UCSZ00);
-	
-#elif defined( CABBUS_ATMEGA_USART ) || defined ( CABBUS_ATMEGA_USART0 )
-	CABBUS_UART_UBRR = UBRR_VALUE;
-	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X0):0;
-	CABBUS_UART_CSR_B = _BV(UCSZ02);
-	CABBUS_UART_CSR_C = _BV(UCSZ01) | _BV(UCSZ00);
-
-#elif defined( CABBUS_ATTINY_USART )
-	// Top four bits are reserved and must always be zero - see ATtiny2313 datasheet
-	// Also, H and L must be written independently, since they're non-adjacent registers
-	// on the attiny parts
-	CABBUS_UART_UBRRH = 0x0F & UBRRH_VALUE;
-	CABBUS_UART_UBRRL = UBRRL_VALUE;
-	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X):0;
-	CABBUS_UART_CSR_B = 0;
-	CABBUS_UART_CSR_C = _BV(UCSZ1) | _BV(UCSZ0);
-
-#elif defined ( CABBUS_ATMEGA_USART1 )
-	CABBUS_UART_UBRR = UBRR_VALUE;
-	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X1):0;
-	CABBUS_UART_CSR_B = _BV(UCSZ12);
-	CABBUS_UART_CSR_C = _BV(UCSZ11) | _BV(UCSZ10);
-#else
-#error "UART for your selected part is not yet defined..."
-#endif
-
+	CABBUS_UART_CSR_C = _BV(USBS0) | _BV(UCSZ01) | _BV(UCSZ00);
 #undef BAUD
 
 	cabBusAddress = addr;

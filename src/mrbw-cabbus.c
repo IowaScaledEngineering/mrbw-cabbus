@@ -196,56 +196,64 @@ void PktHandler(void)
 		uint16_t locoAddress = ((uint16_t)rxBuffer[6] << 8) + rxBuffer[7];
 		if(locoAddress > 99)
 			locoAddress |= 0xC000;
-		uint8_t speedDirection = rxBuffer[8];
+		uint8_t speed = rxBuffer[8] & 0x7F;
+		uint8_t direction = rxBuffer[8] & 0x80;
 		uint32_t functions = ((uint32_t)rxBuffer[9] << 24) + ((uint32_t)rxBuffer[10] << 16) + ((uint16_t)rxBuffer[11] << 8) + rxBuffer[12];
 
 		uint8_t statusFlags = rxBuffer[13];
 
-/*  FIXME!
+		// FIXME: Make smarter.  Only send the response for the data elements that changed.  Build functions as 5 bytes here so they can be compared.
+		
 		// Send Speed/Direction
-		xpressnetBuffer[0] = 0xE4;  // Speed & Direction, 128 speed steps
-		xpressnetBuffer[1] = 0x13;
-		xpressnetBuffer[2] = (locoAddress >> 8);  // Locomotive Address
-		xpressnetBuffer[3] = locoAddress & 0xFF;
-		xpressnetBuffer[4] = speedDirection;
-		xpressnetPktQueuePush(&xpressnetTxQueue, xpressnetBuffer, 5);
+		if(1 == speed)
+		{
+			// E-stop
+			cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
+			cabBusBuffer[1] = locoAddress & 0x7F;
+			cabBusBuffer[2] = (direction) ? 0x06 : 0x05;  // Direction for E-stop
+			cabBusBuffer[3] = 0;
+			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		}
+		else
+		{
+			// Speed and direction
+			cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
+			cabBusBuffer[1] = locoAddress & 0x7F;
+			cabBusBuffer[2] = (direction) ? 0x04 : 0x03;  // Direction for 128 speed step
+			cabBusBuffer[3] = speed ? speed-1 : 0;  // Speed
+			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		}
 
 		// Send function states
-		xpressnetBuffer[0] = 0xE4;  // Function Group 1
-		xpressnetBuffer[1] = 0x20;
-		xpressnetBuffer[2] = (locoAddress >> 8);  // Locomotive Address
-		xpressnetBuffer[3] = locoAddress & 0xFF;
-		xpressnetBuffer[4] = ((functions & 0x01) << 4) | ((functions & 0x1E) >> 1);  // F0 F4 F3 F2 F1
-		xpressnetPktQueuePush(&xpressnetTxQueue, xpressnetBuffer, 5);
+		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
+		cabBusBuffer[1] = locoAddress & 0x7F;
+		cabBusBuffer[2] = 0x07;  // Function Group 1
+		cabBusBuffer[3] = ((functions & 0x01) << 4) | ((functions & 0x1E) >> 1);  // F0 F4 F3 F2 F1
+		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 
-		xpressnetBuffer[0] = 0xE4;  // Function Group 2
-		xpressnetBuffer[1] = 0x21;
-		xpressnetBuffer[2] = (locoAddress >> 8);  // Locomotive Address
-		xpressnetBuffer[3] = locoAddress & 0xFF;
-		xpressnetBuffer[4] = (functions >> 5) & 0xF;  // F8 F7 F6 F5
-		xpressnetPktQueuePush(&xpressnetTxQueue, xpressnetBuffer, 5);
+		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
+		cabBusBuffer[1] = locoAddress & 0x7F;
+		cabBusBuffer[2] = 0x08;  // Function Group 2
+		cabBusBuffer[3] = (functions >> 5) & 0xF;  // F8 F7 F6 F5
+		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 
-		xpressnetBuffer[0] = 0xE4;  // Function Group 3
-		xpressnetBuffer[1] = 0x22;
-		xpressnetBuffer[2] = (locoAddress >> 8);  // Locomotive Address
-		xpressnetBuffer[3] = locoAddress & 0xFF;
-		xpressnetBuffer[4] = (functions >> 9) & 0xF;  // F12 F11 F10 F9
-		xpressnetPktQueuePush(&xpressnetTxQueue, xpressnetBuffer, 5);
+		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
+		cabBusBuffer[1] = locoAddress & 0x7F;
+		cabBusBuffer[2] = 0x09;  // Function Group 3
+		cabBusBuffer[3] = (functions >> 9) & 0xF;  // F12 F11 F10 F9
+		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 
-		xpressnetBuffer[0] = 0xE4;  // Function Group 4 (http://www.opendcc.net/elektronik/opendcc/xpressnet_commands_e.html)
-		xpressnetBuffer[1] = 0x23;
-		xpressnetBuffer[2] = (locoAddress >> 8);  // Locomotive Address
-		xpressnetBuffer[3] = locoAddress & 0xFF;
-		xpressnetBuffer[4] = (functions >> 13) & 0xFF;  // F20 - F13
-		xpressnetPktQueuePush(&xpressnetTxQueue, xpressnetBuffer, 5);
+		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
+		cabBusBuffer[1] = locoAddress & 0x7F;
+		cabBusBuffer[2] = 0x15;  // Function Group 4
+		cabBusBuffer[3] = (functions >> 13) & 0xFF;  // F20 - F13
+		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 
-		xpressnetBuffer[0] = 0xE4;  // Function Group 5 (http://www.opendcc.net/elektronik/opendcc/xpressnet_commands_e.html)
-		xpressnetBuffer[1] = 0x28;
-		xpressnetBuffer[2] = (locoAddress >> 8);  // Locomotive Address
-		xpressnetBuffer[3] = locoAddress & 0xFF;
-		xpressnetBuffer[4] = (functions >> 21) & 0xFF;  // F28 - F21
-		xpressnetPktQueuePush(&xpressnetTxQueue, xpressnetBuffer, 5);
-*/
+		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
+		cabBusBuffer[1] = locoAddress & 0x7F;
+		cabBusBuffer[2] = 0x16;  // Function Group 5
+		cabBusBuffer[3] = (functions >> 21) & 0xFF;  // F28 - F21
+		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 	}
 
 	//*************** END PACKET HANDLER  ***************
@@ -312,7 +320,7 @@ uint8_t oldSwitches = 0xFF;  // Default to something that can never be set on sw
 
 void readDipSwitches(void)
 {
-	uint8_t switches = PINC >> 3;
+	uint8_t switches = (PINC >> 3) & 0x1F;
 	if(oldSwitches != switches)
 	{
 		cabBusInit(switches);
