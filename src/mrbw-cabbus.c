@@ -198,8 +198,15 @@ void PktHandler(void)
 			locoAddress |= 0xC000;
 		uint8_t speed = rxBuffer[8] & 0x7F;
 		uint8_t direction = rxBuffer[8] & 0x80;
+		
+		//  Yeah, yeah, not elegant but copied from code I knew worked and consolidated it here
 		uint32_t functions = ((uint32_t)rxBuffer[9] << 24) + ((uint32_t)rxBuffer[10] << 16) + ((uint16_t)rxBuffer[11] << 8) + rxBuffer[12];
-
+		uint8_t functionsGroup1 = ((functions & 0x01) << 4) | ((functions & 0x1E) >> 1);  // F0 F4 F3 F2 F1
+		uint8_t functionsGroup2 = (functions >> 5) & 0xF;  // F8 F7 F6 F5
+		uint8_t functionsGroup3 = (functions >> 9) & 0xF;  // F12 F11 F10 F9
+		uint8_t functionsGroup4 = (functions >> 13) & 0xFF;  // F20 - F13
+		uint8_t functionsGroup5 = (functions >> 21) & 0xFF;  // F28 - F21
+		
 		uint8_t statusFlags = rxBuffer[13];
 
 		// FIXME: Make smarter.  Only send the response for the data elements that changed.  Build functions as 5 bytes here so they can be compared.
@@ -228,31 +235,31 @@ void PktHandler(void)
 		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
 		cabBusBuffer[1] = locoAddress & 0x7F;
 		cabBusBuffer[2] = 0x07;  // Function Group 1
-		cabBusBuffer[3] = ((functions & 0x01) << 4) | ((functions & 0x1E) >> 1);  // F0 F4 F3 F2 F1
+		cabBusBuffer[3] = functionsGroup1;
 		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 
 		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
 		cabBusBuffer[1] = locoAddress & 0x7F;
 		cabBusBuffer[2] = 0x08;  // Function Group 2
-		cabBusBuffer[3] = (functions >> 5) & 0xF;  // F8 F7 F6 F5
+		cabBusBuffer[3] = functionsGroup2;
 		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 
 		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
 		cabBusBuffer[1] = locoAddress & 0x7F;
 		cabBusBuffer[2] = 0x09;  // Function Group 3
-		cabBusBuffer[3] = (functions >> 9) & 0xF;  // F12 F11 F10 F9
+		cabBusBuffer[3] = functionsGroup3;
 		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 
 		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
 		cabBusBuffer[1] = locoAddress & 0x7F;
 		cabBusBuffer[2] = 0x15;  // Function Group 4
-		cabBusBuffer[3] = (functions >> 13) & 0xFF;  // F20 - F13
+		cabBusBuffer[3] = functionsGroup4;
 		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 
 		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
 		cabBusBuffer[1] = locoAddress & 0x7F;
 		cabBusBuffer[2] = 0x16;  // Function Group 5
-		cabBusBuffer[3] = (functions >> 21) & 0xFF;  // F28 - F21
+		cabBusBuffer[3] = functionsGroup5;
 		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 	}
 
