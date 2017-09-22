@@ -84,8 +84,10 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 					// It's for us, so respond if anything is pending
 					if(cabBusTxPending)
 					{
-						_delay_us(300);  // 100us to bridge the 2nd stop bit (we're called after the first) + 100us minimum before response (see Cab Bus spec) + 100us guardband
-						enableTransmitter();
+						TCNT2 = 0;  // Reset timer2
+						TIFR2 |= _BV(OCF2A);  // Clear any previous interrupts
+						TIMSK2 |= _BV(OCIE2A);  // Enable timer2 interrupt
+						PORTB |= _BV(PB6);
 					}
 				}
 				else
@@ -101,6 +103,13 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 			byte_count++;
 		}
     }
+}
+
+ISR(TIMER2_COMPA_vect)
+{
+	TIMSK2 &= ~_BV(OCIE2A);  // Disable timer2 interrupt
+	PORTB &= ~_BV(PB6);
+	enableTransmitter();
 }
 
 ISR(CABBUS_UART_DONE_INTERRUPT)
@@ -171,6 +180,16 @@ uint8_t cabBusTransmit(void)
 
 void cabBusInit(uint8_t addr)
 {
+	DDRB |= _BV(PB6);  // For analyzing response time
+
+	// Setup Timer 2 for 300us post ping delay
+	// 100us to bridge the 2nd stop bit (we get interrupt after the first stop bit) + 100us minimum before response (see Cab Bus spec) + 100us guardband
+	TCNT2 = 0;
+	OCR2A = 188;  // 50ns (20MHz) * 32 * 188 = 300.8us
+	TCCR2A = _BV(WGM21);
+	TCCR2B = _BV(CS21) | _BV(CS20);  // Divide-by-32
+	TIMSK2 = 0;  // Disable interrupt for now
+
 #undef BAUD
 #define BAUD CABBUS_BAUD
 #include <util/setbaud.h>
