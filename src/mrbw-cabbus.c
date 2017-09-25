@@ -54,6 +54,8 @@ void debug6(uint8_t val)
 }
 #endif
 
+#define LOCO_ADDRESS_SHORT 0x8000
+
 #define MRBUS_TX_BUFFER_DEPTH 16
 #define MRBUS_RX_BUFFER_DEPTH 16
 
@@ -195,8 +197,21 @@ void PktHandler(void)
 	{
 		// Status packet and addressed to us
 		uint16_t locoAddress = ((uint16_t)rxBuffer[6] << 8) + rxBuffer[7];
-		if(locoAddress > 99)
-			locoAddress |= 0xC000;
+		if(locoAddress & LOCO_ADDRESS_SHORT)
+		{
+			// Short Address
+			locoAddress &= ~(LOCO_ADDRESS_SHORT);
+			if(locoAddress > 127)
+				locoAddress = 0x27FF;
+			else
+				locoAddress += 0x2780;
+		}
+		else
+		{
+			// Long Address
+			if(locoAddress > 9999)
+				locoAddress = 0x270F;
+		}
 		uint8_t speed = rxBuffer[8] & 0x7F;
 		uint8_t direction = rxBuffer[8] & 0x80;
 		
