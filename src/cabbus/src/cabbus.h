@@ -112,6 +112,7 @@ LICENSE:
 #endif
 
 extern CabBusPktQueue cabBusTxQueue;
+extern CabBusPktQueue cabBusRxQueue;
 
 uint8_t cabBusTransmit(void);
 void cabBusInit(uint8_t addr);

@@ -32,12 +32,20 @@ LICENSE:
 #include <util/delay.h>
 #include "cabbus.h"
 
+#define CABBUS_STATUS_BROADCAST_CMD    0x01
+#define CABBUS_STATUS_TX_PENDING       0x08
+
+static volatile uint8_t cabBusStatus = 0;
+
 static volatile uint8_t cabBusTxBuffer[CABBUS_BUFFER_SIZE];
+// While cabbusRxBuffer is volatile, it's only accessed within the ISR
+static uint8_t cabBusRxBuffer[CABBUS_BUFFER_SIZE];
 static volatile uint8_t cabBusTxLength = 0;
 static volatile uint8_t cabBusAddress = 0;
 static volatile uint8_t cabBusTxIndex = 0;
-static volatile uint8_t cabBusTxPending = 0;
 CabBusPktQueue cabBusTxQueue;
+CabBusPktQueue cabBusRxQueue;
+
 
 #include <util/parity.h>
 
@@ -66,12 +74,42 @@ ISR(CABBUS_UART_RX_INTERRUPT)
     else
     {
 		data = CABBUS_UART_DATA;
-		if((data & 0xC0) == 0x80)
+		if(cabBusStatus & CABBUS_STATUS_BROADCAST_CMD)
+		{
+			if( ((data & 0xC0) == 0xC0) || (2 == byte_count) )
+			{
+				// Buffer data, assuming it follows the "11xx xxxx" rule for commands, unless it's broadcast command byte #2 since that sometimes doesn't follow the rule
+				// byte 0: ping
+				// byte 1: Command byte 1 (11xx xxxx)
+				// byte 2: Command byte 2 (sometimes doesn't follow the 11xx xxxx rule)
+				// byte n: More command bytes
+				// We will swallow the ping immediately following the broadcast command, but we'll catch it next time we're pinged not following a broadcast command
+				if(byte_count < CABBUS_BUFFER_SIZE)
+				{
+					cabBusRxBuffer[byte_count] = data;
+					byte_count++;
+				}
+			}
+			else
+			{
+				cabBusStatus &= ~CABBUS_STATUS_BROADCAST_CMD;
+				cabBusPktQueuePush(&cabBusRxQueue, cabBusRxBuffer, byte_count);
+			}
+		}
+		else if((data & 0xC0) == 0x80)
 		{
 			// It's (maybe) a ping
 			if((3 == byte_count) || (4 == byte_count) || (5 == byte_count))
 			{
 				// Not a ping since bytes 3-5 are allowed to have the MSB set
+				// Also covers a non-broadcast command since byte 2 of the command is effectively byte_count = 4
+				// byte 0: ping
+				// byte 1: response byte 1
+				// byte 2: response byte 2
+				// byte 3: Command byte 1 (11xx xxxx)
+				// byte 4: Command byte 2 (sometimes doesn't follow the 11xx xxxx rule)
+				// byte n: More command bytes
+				// Might missing a ping following a 2 byte command (byte = 5), but we'll catch it next time we're pinged
 				byte_count++;
 			}
 			else
@@ -79,10 +117,17 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 				// Must be a ping, so process it
 				byte_count = 0;
 				uint8_t address = data & 0x3F;
-				if(address == cabBusAddress)
+				if(0 == address)
+				{
+					// Broadcast command
+					cabBusStatus |= CABBUS_STATUS_BROADCAST_CMD;
+					cabBusRxBuffer[0] = data;
+					byte_count++;
+				}
+				else if(cabBusAddress == address)
 				{
 					// It's for us, so respond if anything is pending
-					if(cabBusTxPending)
+					if(cabBusStatus & CABBUS_STATUS_TX_PENDING)
 					{
 						TCNT2 = 0;  // Reset timer2
 						TIFR2 |= _BV(OCF2A);  // Clear any previous interrupts
@@ -119,7 +164,7 @@ ISR(CABBUS_UART_DONE_INTERRUPT)
 	// Disable the various transmit interrupts
 	// Re-enable receive interrupt
 	CABBUS_UART_CSR_B = (CABBUS_UART_CSR_B & ~(_BV(CABBUS_TXCIE) | _BV(CABBUS_UART_UDRIE))) | _BV(CABBUS_RXCIE);
-	cabBusTxPending = 0;
+	cabBusStatus &= ~CABBUS_STATUS_TX_PENDING;
 }
 
 ISR(CABBUS_UART_TX_INTERRUPT)
@@ -146,7 +191,7 @@ uint8_t cabBusTransmit(void)
 		return(0);
 
 	//  Return if bus already active.
-	if (cabBusTxPending)
+	if (cabBusStatus & CABBUS_STATUS_TX_PENDING)
 		return(1);
 
 	cabBusTxLength = cabBusPktQueuePeek(&cabBusTxQueue, (uint8_t*)cabBusTxBuffer, sizeof(cabBusTxBuffer));
@@ -172,11 +217,10 @@ uint8_t cabBusTransmit(void)
 	
 	cabBusPktQueueDrop(&cabBusTxQueue);
 
-	cabBusTxPending = 1;  // Notify RX routine that a packet is ready to go
+	cabBusStatus |= CABBUS_STATUS_TX_PENDING;  // Notify RX routine that a packet is ready to go
 
 	return(0);
 }
-
 
 void cabBusInit(uint8_t addr)
 {

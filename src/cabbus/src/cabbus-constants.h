@@ -2,9 +2,10 @@
 #define CABBUS_CONSTANTS_H
 
 // Size definitions
-// CABBUS_BUFFER_SIZE should include length byte + data
-// Only 6 are needed (5 byte response + length), but 10 to be safe...
-#define CABBUS_BUFFER_SIZE  10
+// For transmit, only 5 are needed for a 5 byte response
+// For receive, CABBUS_BUFFER_SIZE includes ping, command, and data
+// Command 0xCB appears to the the longest: ping+cmd+8data+loc = 11
+#define CABBUS_BUFFER_SIZE  12
 
 #define CABBUS_BAUD 9600
 

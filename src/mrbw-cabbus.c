@@ -63,12 +63,34 @@ MRBusPacket mrbusTxPktBufferArray[MRBUS_TX_BUFFER_DEPTH];
 MRBusPacket mrbusRxPktBufferArray[MRBUS_RX_BUFFER_DEPTH];
 
 #define CABBUS_TX_BUFFER_DEPTH 16
+#define CABBUS_RX_BUFFER_DEPTH 4
 
 CabBusPacket cabBusTxPktBufferArray[CABBUS_TX_BUFFER_DEPTH];
+CabBusPacket cabBusRxPktBufferArray[CABBUS_RX_BUFFER_DEPTH];
 uint8_t cabBusBuffer[CABBUS_BUFFER_SIZE];
 
 uint8_t mrbus_dev_addr = 0;
 
+#define TIME_FLAGS_DISP_FAST       0x01
+#define TIME_FLAGS_DISP_FAST_HOLD  0x02
+#define TIME_FLAGS_DISP_REAL_AMPM  0x04
+#define TIME_FLAGS_DISP_FAST_AMPM  0x08
+
+uint16_t timeScaleFactor = 10;
+uint8_t timeFlags = 0;
+
+typedef struct
+{
+	uint8_t seconds;
+	uint8_t minutes;
+	uint8_t hours;
+	uint8_t dayOfWeek;
+	uint8_t day;
+	uint8_t month;
+	uint16_t year;
+} TimeData;
+
+TimeData fastTime;
 
 
 void createVersionPacket(uint8_t destAddr, uint8_t *buf)
@@ -91,6 +113,26 @@ void createVersionPacket(uint8_t destAddr, uint8_t *buf)
 	buf[16] = 'B';
 	buf[17] = 'U';
 	buf[18] = 'S';
+}
+
+void createTimePacket(uint8_t *buf)
+{
+	buf[MRBUS_PKT_SRC] = mrbus_dev_addr;
+	buf[MRBUS_PKT_DEST] = 0xFF;
+	buf[MRBUS_PKT_LEN] = 18;			
+	buf[5] = 'T';
+	buf[6] = 0;
+	buf[7] = 0;
+	buf[8] = 0;
+	buf[9] = timeFlags;
+	buf[10] = fastTime.hours;
+	buf[11] = fastTime.minutes;			
+	buf[12] = fastTime.seconds;
+	buf[13] = 0xFF & (timeScaleFactor>>8);
+	buf[14] = 0xFF & timeScaleFactor;
+	buf[15] = 0;
+	buf[16] = 0;
+	buf[17] = 0;
 }
 
 void PktHandler(void)
@@ -350,6 +392,14 @@ void readDipSwitches(void)
 	}
 }
 
+uint8_t adjustCabBusASCII(uint8_t chr)
+{
+	if(chr & 0x20)
+		return(chr & 0x3F);  // Clear bit 6 & 7
+	else
+		return(chr & 0x7F);  // Clear only bit 7
+}
+
 int main(void)
 {
 	uint8_t mrbusTxBuffer[MRBUS_BUFFER_SIZE];
@@ -364,6 +414,7 @@ int main(void)
 	mrbusPktQueueInitialize(&mrbeeRxQueue, mrbusRxPktBufferArray, MRBUS_RX_BUFFER_DEPTH);
 
 	cabBusPktQueueInitialize(&cabBusTxQueue, cabBusTxPktBufferArray, CABBUS_TX_BUFFER_DEPTH);
+	cabBusPktQueueInitialize(&cabBusRxQueue, cabBusRxPktBufferArray, CABBUS_RX_BUFFER_DEPTH);
 
 	readDipSwitches();  // cabBusInit will be called here
 	mrbeeInit();
@@ -415,6 +466,46 @@ int main(void)
 #ifndef DEBUG
 			mrbeeTransmit();
 #endif
+		}
+
+		if (cabBusPktQueueDepth(&cabBusRxQueue))
+		{
+			uint8_t rxBuffer[CABBUS_BUFFER_SIZE];
+
+			if (0 != cabBusPktQueuePop(&cabBusRxQueue, rxBuffer, sizeof(rxBuffer)))
+			{
+				switch(rxBuffer[1])
+				{
+					case 0xC1:
+						// Fast Time ASCII
+						fastTime.hours = ((adjustCabBusASCII(rxBuffer[3]) - '0') * 10) + (adjustCabBusASCII(rxBuffer[4]) - '0');
+						fastTime.minutes = ((adjustCabBusASCII(rxBuffer[6]) - '0') * 10) + (adjustCabBusASCII(rxBuffer[7]) - '0');
+						if('A' == (adjustCabBusASCII(rxBuffer[8])))
+						{
+							timeFlags |= TIME_FLAGS_DISP_FAST_AMPM;
+						}
+						else if('P' == (adjustCabBusASCII(rxBuffer[8])))
+						{
+							timeFlags |= TIME_FLAGS_DISP_FAST_AMPM;
+							fastTime.hours += 12;
+						}
+						else
+						{
+							timeFlags &= ~TIME_FLAGS_DISP_FAST_AMPM;
+						}
+						timeFlags |= TIME_FLAGS_DISP_FAST;
+						createTimePacket(mrbusTxBuffer);
+						mrbusPktQueuePush(&mrbeeTxQueue, mrbusTxBuffer, mrbusTxBuffer[MRBUS_PKT_LEN]);
+						break;
+					case 0xD4:
+						// Fast Time Ratio
+						timeScaleFactor = ((uint16_t)(rxBuffer[2] & 0x3F)) * 10;
+						timeFlags |= TIME_FLAGS_DISP_FAST;
+//						createTimePacket(mrbusTxBuffer);
+//						mrbusPktQueuePush(&mrbeeTxQueue, mrbusTxBuffer, mrbusTxBuffer[MRBUS_PKT_LEN]);
+						break;
+				}
+			}
 		}
 
 		if(cabBusPktQueueDepth(&cabBusTxQueue))
