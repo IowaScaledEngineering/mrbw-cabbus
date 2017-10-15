@@ -483,11 +483,14 @@ int main(void)
 						if('A' == (adjustCabBusASCII(rxBuffer[8])))
 						{
 							timeFlags |= TIME_FLAGS_DISP_FAST_AMPM;
+							if(fastTime.hours > 11)
+								fastTime.hours -= 12;
 						}
 						else if('P' == (adjustCabBusASCII(rxBuffer[8])))
 						{
 							timeFlags |= TIME_FLAGS_DISP_FAST_AMPM;
-							fastTime.hours += 12;
+							if(fastTime.hours < 12)
+								fastTime.hours += 12;
 						}
 						else
 						{
