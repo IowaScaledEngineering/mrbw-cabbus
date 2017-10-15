@@ -404,6 +404,8 @@ int main(void)
 {
 	uint8_t mrbusTxBuffer[MRBUS_BUFFER_SIZE];
 	uint16_t decisecs_tmp = 0;
+	
+	uint8_t enableFastTime = 0;
 
 	init();
 
@@ -438,6 +440,20 @@ int main(void)
 		wdt_reset();
 
 		readDipSwitches();
+		
+		DDRB |= _BV(PB7);  // Set PB7 as output pulling low
+		PORTB &= ~_BV(PB7);
+		
+		DDRB &= ~(_BV(PB5) | _BV(PB6));  // Set PB5 and PB6 as input, pull-up enabled
+		PORTB |= (_BV(PB5) | _BV(PB6));
+		
+		// Check programming header pins 1 & 3
+		// If a jumper is on 1-3, PB7 will pull PB6 low.
+		enableFastTime = PINB & _BV(PB6);
+		
+		// Check programming header pins 4 & 6
+		// If a jumper is on 4-6, GND will pull PB5 low.
+		// Do something useful eventually
 		
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 		{
@@ -497,15 +513,21 @@ int main(void)
 							timeFlags &= ~TIME_FLAGS_DISP_FAST_AMPM;
 						}
 						timeFlags |= TIME_FLAGS_DISP_FAST;
-						createTimePacket(mrbusTxBuffer);
-						mrbusPktQueuePush(&mrbeeTxQueue, mrbusTxBuffer, mrbusTxBuffer[MRBUS_PKT_LEN]);
+						if(enableFastTime)
+						{
+							createTimePacket(mrbusTxBuffer);
+							mrbusPktQueuePush(&mrbeeTxQueue, mrbusTxBuffer, mrbusTxBuffer[MRBUS_PKT_LEN]);
+						}
 						break;
 					case 0xD4:
 						// Fast Time Ratio
 						timeScaleFactor = ((uint16_t)(rxBuffer[2] & 0x3F)) * 10;
 						timeFlags |= TIME_FLAGS_DISP_FAST;
-//						createTimePacket(mrbusTxBuffer);
-//						mrbusPktQueuePush(&mrbeeTxQueue, mrbusTxBuffer, mrbusTxBuffer[MRBUS_PKT_LEN]);
+						if(enableFastTime)
+						{
+							createTimePacket(mrbusTxBuffer);
+							mrbusPktQueuePush(&mrbeeTxQueue, mrbusTxBuffer, mrbusTxBuffer[MRBUS_PKT_LEN]);
+						}
 						break;
 				}
 			}
