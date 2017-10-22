@@ -29,6 +29,7 @@ LICENSE:
 #include <util/atomic.h>
 #include "mrbee.h"
 #include "cabbus.h"
+#include "cabbus-cache.h"
 
 #ifdef DEBUG
 void debugInit(void)
@@ -238,85 +239,117 @@ void PktHandler(void)
 	else if (('S' == rxBuffer[MRBUS_PKT_TYPE]) && (mrbus_dev_addr == rxBuffer[MRBUS_PKT_DEST]))
 	{
 		// Status packet and addressed to us
-		uint16_t locoAddress = ((uint16_t)rxBuffer[6] << 8) + rxBuffer[7];
-		if(locoAddress & LOCO_ADDRESS_SHORT)
+		CabData c;
+
+		c.locoAddress = ((uint16_t)rxBuffer[6] << 8) + rxBuffer[7];
+		if(c.locoAddress & LOCO_ADDRESS_SHORT)
 		{
 			// Short Address
-			locoAddress &= ~(LOCO_ADDRESS_SHORT);
-			if(locoAddress > 127)
-				locoAddress = 0x27FF;
+			c.locoAddress &= ~(LOCO_ADDRESS_SHORT);
+			if(c.locoAddress > 127)
+				c.locoAddress = 0x27FF;
 			else
-				locoAddress += 0x2780;
+				c.locoAddress += 0x2780;
 		}
 		else
 		{
 			// Long Address
-			if(locoAddress > 9999)
-				locoAddress = 0x270F;
+			if(c.locoAddress > 9999)
+				c.locoAddress = 0x270F;
 		}
-		uint8_t speed = rxBuffer[8] & 0x7F;
-		uint8_t direction = rxBuffer[8] & 0x80;
 		
+		c.speedDirection = rxBuffer[8];
+
 		//  Yeah, yeah, not elegant but copied from code I knew worked and consolidated it here
 		uint32_t functions = ((uint32_t)rxBuffer[9] << 24) + ((uint32_t)rxBuffer[10] << 16) + ((uint16_t)rxBuffer[11] << 8) + rxBuffer[12];
-		uint8_t functionsGroup1 = ((functions & 0x01) << 4) | ((functions & 0x1E) >> 1);  // F0 F4 F3 F2 F1
-		uint8_t functionsGroup2 = (functions >> 5) & 0xF;  // F8 F7 F6 F5
-		uint8_t functionsGroup3 = (functions >> 9) & 0xF;  // F12 F11 F10 F9
-		uint8_t functionsGroup4 = (functions >> 13) & 0xFF;  // F20 - F13
-		uint8_t functionsGroup5 = (functions >> 21) & 0xFF;  // F28 - F21
-		
-		uint8_t statusFlags = rxBuffer[13];
+		c.functionGroup1 = ((functions & 0x01) << 4) | ((functions & 0x1E) >> 1);  // F0 F4 F3 F2 F1
+		c.functionGroup2 = (functions >> 5) & 0xF;  // F8 F7 F6 F5
+		c.functionGroup3 = (functions >> 9) & 0xF;  // F12 F11 F10 F9
+		c.functionGroup4 = (functions >> 13) & 0xFF;  // F20 - F13
+		c.functionGroup5 = (functions >> 21) & 0xFF;  // F28 - F21
 
-		// Send Speed/Direction
-		if(1 == speed)
+//      Not used at the moment, so comment out to suppress compiler warnings
+//		uint8_t statusFlags = rxBuffer[13];
+
+		uint8_t delta = compareCabData(rxBuffer[MRBUS_PKT_SRC], &c);
+
+		// Policy for sending Cab Bus updates:
+		//    1) Locomotive address changed.  This throttle was controlling a different locomotive before, so update everything.
+		//    2) Certain items have changed since last time.  Update only those items that changed.
+		//    3) No changes since last time.  Update everything as a refresh.
+
+		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_SPEED_DIRECTION_CHANGED(delta) || (0 == delta))
 		{
-			// E-stop
-			cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
-			cabBusBuffer[1] = locoAddress & 0x7F;
-			cabBusBuffer[2] = (direction) ? 0x06 : 0x05;  // Direction for E-stop
-			cabBusBuffer[3] = 0;
-			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
-		}
-		else
-		{
-			// Speed and direction
-			cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
-			cabBusBuffer[1] = locoAddress & 0x7F;
-			cabBusBuffer[2] = (direction) ? 0x04 : 0x03;  // Direction for 128 speed step
-			cabBusBuffer[3] = speed ? speed-1 : 0;  // Speed
-			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			// Send Speed/Direction
+			uint8_t speed = c.speedDirection & 0x7F;
+			uint8_t direction = c.speedDirection & 0x80;
+			if(1 == speed)
+			{
+				// E-stop
+				cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+				cabBusBuffer[1] = c.locoAddress & 0x7F;
+				cabBusBuffer[2] = (direction) ? 0x06 : 0x05;  // Direction for E-stop
+				cabBusBuffer[3] = 0;
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			}
+			else
+			{
+				// Speed and direction
+				cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+				cabBusBuffer[1] = c.locoAddress & 0x7F;
+				cabBusBuffer[2] = (direction) ? 0x04 : 0x03;  // Direction for 128 speed step
+				cabBusBuffer[3] = speed ? speed-1 : 0;  // Speed
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			}
 		}
 
 		// Send function states
-		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
-		cabBusBuffer[1] = locoAddress & 0x7F;
-		cabBusBuffer[2] = 0x07;  // Function Group 1
-		cabBusBuffer[3] = functionsGroup1;
-		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_1_CHANGED(delta) || (0 == delta))
+		{
+			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+			cabBusBuffer[1] = c.locoAddress & 0x7F;
+			cabBusBuffer[2] = 0x07;  // Function Group 1
+			cabBusBuffer[3] = c.functionGroup1;
+			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		}
 
-		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
-		cabBusBuffer[1] = locoAddress & 0x7F;
-		cabBusBuffer[2] = 0x08;  // Function Group 2
-		cabBusBuffer[3] = functionsGroup2;
-		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_2_CHANGED(delta) || (0 == delta))
+		{
+			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+			cabBusBuffer[1] = c.locoAddress & 0x7F;
+			cabBusBuffer[2] = 0x08;  // Function Group 2
+			cabBusBuffer[3] = c.functionGroup2;
+			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		}
 
-		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
-		cabBusBuffer[1] = locoAddress & 0x7F;
-		cabBusBuffer[2] = 0x09;  // Function Group 3
-		cabBusBuffer[3] = functionsGroup3;
-		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_3_CHANGED(delta) || (0 == delta))
+		{
+			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+			cabBusBuffer[1] = c.locoAddress & 0x7F;
+			cabBusBuffer[2] = 0x09;  // Function Group 3
+			cabBusBuffer[3] = c.functionGroup3;
+			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		}
 
-		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
-		cabBusBuffer[1] = locoAddress & 0x7F;
-		cabBusBuffer[2] = 0x15;  // Function Group 4
-		cabBusBuffer[3] = functionsGroup4;
-		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_4_CHANGED(delta) || (0 == delta))
+		{
+			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+			cabBusBuffer[1] = c.locoAddress & 0x7F;
+			cabBusBuffer[2] = 0x15;  // Function Group 4
+			cabBusBuffer[3] = c.functionGroup4;
+			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		}
 
-		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
-		cabBusBuffer[1] = locoAddress & 0x7F;
-		cabBusBuffer[2] = 0x16;  // Function Group 5
-		cabBusBuffer[3] = functionsGroup5;
-		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_5_CHANGED(delta) || (0 == delta))
+		{
+			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+			cabBusBuffer[1] = c.	locoAddress & 0x7F;
+			cabBusBuffer[2] = 0x16;  // Function Group 5
+			cabBusBuffer[3] = c.functionGroup5;
+			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		}
+		
+		updateCabData(rxBuffer[MRBUS_PKT_SRC], &c);
 	}
 
 	//*************** END PACKET HANDLER  ***************

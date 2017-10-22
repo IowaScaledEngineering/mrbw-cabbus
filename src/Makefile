@@ -31,8 +31,8 @@ BASE_NAME = mrbw-cabbus
 PROGRAMMER_TYPE=usbtiny
 PROGRAMMER_PORT=usb
 
-MRBUS_LIB=./mrbus/src/
-CABBUS_LIB=./cabbus/src/
+MRBUS_LIB=./mrbus/src
+CABBUS_LIB=./cabbus/src
 
 # ATmega1284 20MHz @ 5V
 DEVICE  = atmega1284p
@@ -44,7 +44,7 @@ FUSE_E  = 0xFC
 GITREV := 'GIT_REV=0x$(shell git rev-parse --short=6 HEAD)L'
 
 DEFINES := -DMRBEE -D$(GITREV) -DENABLE_WATCHDOG -DHWREV_MAJOR=3 -DHWREV_MINOR=1 -DMRBEE_IGNORE_FLOW -DMRBEE_ATMEGA_USART1
-SRCS = $(BASE_NAME).c $(MRBUS_LIB)/mrbee-avr.c $(MRBUS_LIB)/mrbus-crc.c $(MRBUS_LIB)/mrbus-queue.c $(CABBUS_LIB)/cabbus.c $(CABBUS_LIB)/cabbus-queue.c
+SRCS = $(BASE_NAME).c $(MRBUS_LIB)/mrbee-avr.c $(MRBUS_LIB)/mrbus-crc.c $(MRBUS_LIB)/mrbus-queue.c $(CABBUS_LIB)/cabbus.c $(CABBUS_LIB)/cabbus-queue.c $(CABBUS_LIB)/cabbus-cache.c
 INCS = $(MRBUS_LIB)/mrbee.h $(MRBUS_LIB)/mrbee-avr.h
 
 AVRDUDE = avrdude -P $(PROGRAMMER_PORT) -c $(PROGRAMMER_TYPE) -p $(DEVICE) -B1 -F

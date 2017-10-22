@@ -32,6 +32,7 @@ LICENSE:
 #include "cabbus-constants.h"
 #include "cabbus-macros.h"
 #include "cabbus-queue.h"
+#include "cabbus-cache.h"
 
 // AVR type-specific stuff
 // Define the UART port and registers used for XBee communication
