@@ -83,7 +83,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 				// byte 1: Command byte 1 (11xx xxxx)
 				// byte 2: Command byte 2 (sometimes doesn't follow the 11xx xxxx rule)
 				// byte n: More command bytes
-				// We will swallow the ping immediately following the broadcast command, but we'll catch it next time we're pinged not following a broadcast command
+				// When done, 'data' contains the byte immediately following the broadcast command, but we'll process it next
 				if(byte_count < CABBUS_BUFFER_SIZE)
 				{
 					cabBusRxBuffer[byte_count] = data;
@@ -94,9 +94,12 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 			{
 				cabBusStatus &= ~CABBUS_STATUS_BROADCAST_CMD;
 				cabBusPktQueuePush(&cabBusRxQueue, cabBusRxBuffer, byte_count);
+				// Fall through to the next if statement to process the byte sitting in 'data'
+				byte_count = 0;
 			}
 		}
-		else if((data & 0xC0) == 0x80)
+		
+		if(((data & 0xC0) == 0x80) && !(cabBusStatus & CABBUS_STATUS_BROADCAST_CMD))
 		{
 			// It's (maybe) a ping
 			if((3 == byte_count) || (4 == byte_count) || (5 == byte_count))
