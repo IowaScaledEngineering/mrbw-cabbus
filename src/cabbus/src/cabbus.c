@@ -102,7 +102,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 		if(((data & 0xC0) == 0x80) && !(cabBusStatus & CABBUS_STATUS_BROADCAST_CMD))
 		{
 			// It's (maybe) a ping
-			if((3 == byte_count) || (4 == byte_count) || (5 == byte_count))
+			if((3 == byte_count) || (4 == byte_count) )//|| (5 == byte_count))
 			{
 				// Not a ping since bytes 3-5 are allowed to have the MSB set (smart cab)
 				// Also covers a dumb cab command since byte 2 of the command is effectively byte_count = 4
