@@ -104,15 +104,25 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 			// It's (maybe) a ping
 			if((3 == byte_count) || (4 == byte_count) || (5 == byte_count))
 			{
-				// Not a ping since bytes 3-5 are allowed to have the MSB set
-				// Also covers a non-broadcast command since byte 2 of the command is effectively byte_count = 4
-				// byte 0: ping
-				// byte 1: response byte 1
-				// byte 2: response byte 2
-				// byte 3: Command byte 1 (11xx xxxx)
-				// byte 4: Command byte 2 (sometimes doesn't follow the 11xx xxxx rule)
-				// byte n: More command bytes
-				// Might missing a ping following a 2 byte command (byte = 5), but we'll catch it next time we're pinged
+				// Not a ping since bytes 3-5 are allowed to have the MSB set (smart cab)
+				// Also covers a dumb cab command since byte 2 of the command is effectively byte_count = 4
+				//
+				// Dumb Cab:
+				// byte 0: --> ping
+				// byte 1: <-- response byte 1
+				// byte 2: <-- response byte 2
+				// byte 3: --> Command byte 1 (11xx xxxx)
+				// byte 4: --> Command byte 2 (sometimes doesn't follow the 11xx xxxx rule)
+				// byte n: --> More command bytes
+				// Might missing a ping following a 2 byte command (byte = 5), but we'll catch it next time we're pinged (FIXME: maybe?)
+				//
+				// Smart Cab:
+				// byte 0: --> ping
+				// byte 1: <-- address 1
+				// byte 2: <-- address 2
+				// byte 3: <-- Command
+				// byte 4: <-- Value
+				// byte 5: <-- Checksum
 				byte_count++;
 			}
 			else
