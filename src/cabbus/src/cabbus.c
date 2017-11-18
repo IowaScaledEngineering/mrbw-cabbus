@@ -98,6 +98,9 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 		if((data & 0xC0) == 0x80)
 		{
 			// The byte might be a ping, but we need to check the exceptions
+			// FIXME: For dumb cabs, byte 2 might also not follow the pattern for broadcast cmds of FC ratio
+			// FIXME: Also, for dumb cabs, some commands like CE and CF are single bytes and byte 4 really IS another ping, though these are low occurance
+			// FIXME: The dumb cab exception *might* not be needed.  Need to do more investigation.
 			if(
 				!( (cabBusStatus & CABBUS_STATUS_DUMB_CAB) && ((4 == byte_count)) ) &&
 				!( (cabBusStatus & CABBUS_STATUS_SMART_CAB) && ((3 == byte_count) || (4 == byte_count) || (5 == byte_count)) )
