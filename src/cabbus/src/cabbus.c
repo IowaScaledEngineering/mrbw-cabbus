@@ -33,7 +33,9 @@ LICENSE:
 #include "cabbus.h"
 
 #define CABBUS_STATUS_BROADCAST_CMD    0x01
-#define CABBUS_STATUS_TX_PENDING       0x08
+#define CABBUS_STATUS_DUMB_CAB         0x02
+#define CABBUS_STATUS_SMART_CAB        0x04
+#define CABBUS_STATUS_TX_PENDING       0x80
 
 static volatile uint8_t cabBusStatus = 0;
 
@@ -73,7 +75,81 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 	}
     else
     {
+		// Dumb Cab:
+		// byte 0: --> ping
+		// byte 1: <-- response byte 1
+		// byte 2: <-- response byte 2
+		// byte 3: --> Command byte 1 (11xx xxxx)
+		// byte 4: --> Command byte 2 (sometimes doesn't follow the 11xx xxxx rule)
+		// byte n: --> More command bytes
+		// Might missing a ping following a 2 byte command (byte = 5), but we'll catch it next time we're pinged (FIXME: maybe?)
+		//
+		// Smart Cab:
+		// byte 0: --> ping
+		// byte 1: <-- address 1
+		// byte 2: <-- address 2
+		// byte 3: <-- Command
+		// byte 4: <-- Value
+		// byte 5: <-- Checksum
+		// Note: Bytes 3-5 are allowed to have the MSB set
+
 		data = CABBUS_UART_DATA;
+
+		if((data & 0xC0) == 0x80)
+		{
+			// The byte might be a ping, but we need to check the exceptions
+			if(
+				!( (cabBusStatus & CABBUS_STATUS_DUMB_CAB) && ((4 == byte_count)) ) &&
+				!( (cabBusStatus & CABBUS_STATUS_SMART_CAB) && ((3 == byte_count) || (4 == byte_count) || (5 == byte_count)) )
+			)
+			{
+				// Must be a ping, so handle it
+				uint8_t address = data & 0x3F;
+				if(0 == address)
+				{
+					//FIXME: is this needed?  Can it be determined later?
+					// Broadcast command
+					cabBusStatus |= CABBUS_STATUS_BROADCAST_CMD;
+				}
+				else if(cabBusAddress == address)
+				{
+					// It's for us, so respond if anything is pending
+					if(cabBusStatus & CABBUS_STATUS_TX_PENDING)
+					{
+						TCNT2 = 0;  // Reset timer2
+						TIFR2 |= _BV(OCF2A);  // Clear any previous interrupts
+						TIMSK2 |= _BV(OCIE2A);  // Enable timer2 interrupt
+						PORTB |= _BV(PB6);
+					}
+				}
+				
+				// Process previous packet, if one exists
+				// FIXME
+
+				// Reset flags
+				cabBusStatus &= ~CABBUS_STATUS_SMART_CAB;
+				cabBusStatus &= ~CABBUS_STATUS_DUMB_CAB;
+				// Reset byte_count so the current data byte gets stored in the correct spot
+				byte_count = 0;
+			}
+		}
+
+		if(1 == byte_count)
+		{
+			// First byte of a response.  Determine the response type.
+			if(data < 0x40)
+				cabBusStatus |= CABBUS_STATUS_SMART_CAB;
+			else
+				cabBusStatus |= CABBUS_STATUS_DUMB_CAB;
+		}
+
+		// Store the byte
+		cabBusRxBuffer[byte_count] = data;
+		byte_count++;
+	}
+
+
+/*
 		if(cabBusStatus & CABBUS_STATUS_BROADCAST_CMD)
 		{
 			if( ((data & 0xC0) == 0xC0) || (2 == byte_count) )
@@ -96,58 +172,13 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 				cabBusPktQueuePush(&cabBusRxQueue, cabBusRxBuffer, byte_count);
 			}
 		}
-		else if((data & 0xC0) == 0x80)
-		{
-			// It's (maybe) a ping
-			if((3 == byte_count) || (4 == byte_count) || (5 == byte_count))
-			{
-				// Not a ping since bytes 3-5 are allowed to have the MSB set
-				// Also covers a non-broadcast command since byte 2 of the command is effectively byte_count = 4
-				// byte 0: ping
-				// byte 1: response byte 1
-				// byte 2: response byte 2
-				// byte 3: Command byte 1 (11xx xxxx)
-				// byte 4: Command byte 2 (sometimes doesn't follow the 11xx xxxx rule)
-				// byte n: More command bytes
-				// Might missing a ping following a 2 byte command (byte = 5), but we'll catch it next time we're pinged
-				byte_count++;
-			}
-			else
-			{
-				// Must be a ping, so process it
-				byte_count = 0;
-				uint8_t address = data & 0x3F;
-				if(0 == address)
-				{
-					// Broadcast command
-					cabBusStatus |= CABBUS_STATUS_BROADCAST_CMD;
-					cabBusRxBuffer[0] = data;
-					byte_count++;
-				}
-				else if(cabBusAddress == address)
-				{
-					// It's for us, so respond if anything is pending
-					if(cabBusStatus & CABBUS_STATUS_TX_PENDING)
-					{
-						TCNT2 = 0;  // Reset timer2
-						TIFR2 |= _BV(OCF2A);  // Clear any previous interrupts
-						TIMSK2 |= _BV(OCIE2A);  // Enable timer2 interrupt
-						PORTB |= _BV(PB6);
-					}
-				}
-				else
-				{
-					// Not for us, ignore (but still count bytes since someone else may respond as the next byte)
-					byte_count++;
-				}
-			}
-		}
 		else
 		{
 			// Data response from someone else, ignore (but still count bytes)
 			byte_count++;
 		}
     }
+*/
 }
 
 ISR(TIMER2_COMPA_vect)
