@@ -112,14 +112,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 			//         Dumb cabs appear to be fooled by this and cause collisions, though the data appears to still get through.  Observed collisions on scope.
 			{
 				// Must be a ping, so handle it
-				uint8_t address = data & 0x3F;
-
-				if(0 == address)
-				{
-					// Broadcast command
-					cabBusPktQueuePush(&cabBusRxQueue, cabBusRxBuffer, byte_count);
-				}
-				else if(cabBusAddress == address)
+				if(cabBusAddress == (data & 0x3F))
 				{
 					// It's for us, so respond if anything is pending
 					if(cabBusStatus & CABBUS_STATUS_TX_PENDING)
@@ -128,9 +121,17 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 						TIFR2 |= _BV(OCF2A);  // Clear any previous interrupts
 						TIMSK2 |= _BV(OCIE2A);  // Enable timer2 interrupt
 #ifdef DEBUG
-						PORTB |= _BV(PB6);
+//						PORTB |= _BV(PB6);
 #endif
 					}
+				}
+				
+				if(0x80 == cabBusRxBuffer[0])
+				{
+					// Broadcast command
+PORTB |= _BV(PB6);
+					cabBusPktQueuePush(&cabBusRxQueue, cabBusRxBuffer, byte_count);
+PORTB &= ~_BV(PB6);
 				}
 
 				// Reset byte_count so the current data byte gets stored in the correct (index = 0) spot
@@ -191,7 +192,7 @@ ISR(TIMER2_COMPA_vect)
 {
 	TIMSK2 &= ~_BV(OCIE2A);  // Disable timer2 interrupt
 #ifdef DEBUG
-	PORTB &= ~_BV(PB6);
+//	PORTB &= ~_BV(PB6);
 #endif
 	enableTransmitter();
 }

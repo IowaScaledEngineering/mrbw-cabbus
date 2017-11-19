@@ -495,19 +495,19 @@ int main(void)
 
 			if (0 != cabBusPktQueuePop(&cabBusRxQueue, rxBuffer, sizeof(rxBuffer)))
 			{
-				switch(rxBuffer[1])
+				switch(rxBuffer[3])
 				{
 					case 0xC1:
 						// Fast Time ASCII
-						fastTime.hours = ((adjustCabBusASCII(rxBuffer[3]) - '0') * 10) + (adjustCabBusASCII(rxBuffer[4]) - '0');
-						fastTime.minutes = ((adjustCabBusASCII(rxBuffer[6]) - '0') * 10) + (adjustCabBusASCII(rxBuffer[7]) - '0');
-						if('A' == (adjustCabBusASCII(rxBuffer[8])))
+						fastTime.hours = ((adjustCabBusASCII(rxBuffer[5]) - '0') * 10) + (adjustCabBusASCII(rxBuffer[6]) - '0');
+						fastTime.minutes = ((adjustCabBusASCII(rxBuffer[8]) - '0') * 10) + (adjustCabBusASCII(rxBuffer[9]) - '0');
+						if('A' == (adjustCabBusASCII(rxBuffer[10])))
 						{
 							timeFlags |= TIME_FLAGS_DISP_FAST_AMPM;
 							if(fastTime.hours > 11)
 								fastTime.hours -= 12;
 						}
-						else if('P' == (adjustCabBusASCII(rxBuffer[8])))
+						else if('P' == (adjustCabBusASCII(rxBuffer[10])))
 						{
 							timeFlags |= TIME_FLAGS_DISP_FAST_AMPM;
 							if(fastTime.hours < 12)
@@ -526,7 +526,7 @@ int main(void)
 						break;
 					case 0xD4:
 						// Fast Time Ratio
-						timeScaleFactor = ((uint16_t)(rxBuffer[2] & 0x3F)) * 10;
+						timeScaleFactor = ((uint16_t)(rxBuffer[4] & 0x3F)) * 10;
 						timeFlags |= TIME_FLAGS_DISP_FAST;
 						if(enableFastTime)
 						{
