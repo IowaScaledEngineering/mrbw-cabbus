@@ -75,14 +75,16 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 	}
     else
     {
+		data = CABBUS_UART_DATA;
+
 		// Dumb Cab:
 		// byte 0: --> ping
 		// byte 1: <-- response byte 1
 		// byte 2: <-- response byte 2
 		// byte 3: --> Command byte 1 (11xx xxxx)
-		// byte 4: --> Command byte 2 (sometimes doesn't follow the 11xx xxxx rule)
-		// byte n: --> More command bytes
-		// Might missing a ping following a 2 byte command (byte = 5), but we'll catch it next time we're pinged (FIXME: maybe?)
+		// byte 4: --> Command byte 2 or next ping (sometimes doesn't follow the 11xx xxxx rule)
+		// byte n: --> More command bytes or next ping (sometimes doesn't follow the 11xx xxxx rule, e.g. command 0xCB)
+		// Note: Bytes 4-n could look like pings but are conditional on the command byte 1 value
 		//
 		// Smart Cab:
 		// byte 0: --> ping
@@ -91,28 +93,31 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 		// byte 3: <-- Command
 		// byte 4: <-- Value
 		// byte 5: <-- Checksum
-		// Note: Bytes 3-5 are allowed to have the MSB set
+		// Note: Bytes 4-5 are allowed to have the MSB set
 
-		data = CABBUS_UART_DATA;
-
+		// Does the byte have the characteristics of a ping (10xx xxxx)?
 		if((data & 0xC0) == 0x80)
 		{
 			// The byte might be a ping, but we need to check the exceptions
-			// FIXME: For dumb cabs, byte 2 might also not follow the pattern for broadcast cmds of FC ratio
-			// FIXME: Also, for dumb cabs, some commands like CE and CF are single bytes and byte 4 really IS another ping, though these are low occurance
-			// FIXME: The dumb cab exception *might* not be needed.  Need to do more investigation.
+			uint8_t cmd = cabBusRxBuffer[3];
 			if(
-				!( (cabBusStatus & CABBUS_STATUS_DUMB_CAB) && ((4 == byte_count)) ) &&
-				!( (cabBusStatus & CABBUS_STATUS_SMART_CAB) && ((3 == byte_count) || (4 == byte_count) || (5 == byte_count)) )
+				!( (0x15 <= cmd) && (cmd <= 0x16) && (4 <= byte_count) && (byte_count <= 5)  ) &&  // Ignore bytes 4 & 5 of smart cab FN13-28 responses (Note 1)
+				!( (0xCB == cmd)                  && (4 <= byte_count) && (byte_count <= 12) ) &&  // Ignore 9 bytes following dumb cab command 0xCB
+				!( (0xC0 <= cmd) && (cmd <= 0xC7) && (4 <= byte_count) && (byte_count <= 11) ) &&  // Ignore 8 bytes following dumb cab commands 0xC0 to 0xC7, special chars are not escaped (Note 2)
+				!( (0xC8 == cmd)                  && (4 == byte_count)                       ) &&  // Ignore data for command 0xC8 (unverified, based on example from spec)
+				!( (0xCC == cmd)                  && (4 == byte_count)                       )     // Ignore data for command 0xCC (?)
 			)
+			// Note 1: This could catch some cab memory access and OPS programming packets, too, but these are properly escaped so it shouldn't ever get here.
+			// Note 2: Although ASCII chars are escaped in the 8 char writes, special chars are not (e.g. EXPN display for FN10 and FN20).
+			//         Dumb cabs appear to be fooled by this and cause collisions, though the data appears to still get through.  Observed collisions on scope.
 			{
 				// Must be a ping, so handle it
 				uint8_t address = data & 0x3F;
+
 				if(0 == address)
 				{
-					//FIXME: is this needed?  Can it be determined later?
 					// Broadcast command
-					cabBusStatus |= CABBUS_STATUS_BROADCAST_CMD;
+					cabBusPktQueuePush(&cabBusRxQueue, cabBusRxBuffer, byte_count);
 				}
 				else if(cabBusAddress == address)
 				{
@@ -122,28 +127,26 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 						TCNT2 = 0;  // Reset timer2
 						TIFR2 |= _BV(OCF2A);  // Clear any previous interrupts
 						TIMSK2 |= _BV(OCIE2A);  // Enable timer2 interrupt
+#ifdef DEBUG
 						PORTB |= _BV(PB6);
+#endif
 					}
 				}
-				
-				// Process previous packet, if one exists
-				// FIXME
 
-				// Reset flags
-				cabBusStatus &= ~CABBUS_STATUS_SMART_CAB;
-				cabBusStatus &= ~CABBUS_STATUS_DUMB_CAB;
-				// Reset byte_count so the current data byte gets stored in the correct spot
+				// Reset byte_count so the current data byte gets stored in the correct (index = 0) spot
 				byte_count = 0;
 			}
 		}
 
 		if(1 == byte_count)
 		{
-			// First byte of a response.  Determine the response type.
-			if(data < 0x40)
-				cabBusStatus |= CABBUS_STATUS_SMART_CAB;
-			else
-				cabBusStatus |= CABBUS_STATUS_DUMB_CAB;
+			// First byte after ping
+			if(0x80 == cabBusRxBuffer[0])
+			{
+				// Broadcast command, skip 2 bytes so it aligns with normal commands
+				cabBusRxBuffer[byte_count++] = 0;
+				cabBusRxBuffer[byte_count++] = 0;
+			}
 		}
 
 		// Store the byte
@@ -187,7 +190,9 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 ISR(TIMER2_COMPA_vect)
 {
 	TIMSK2 &= ~_BV(OCIE2A);  // Disable timer2 interrupt
+#ifdef DEBUG
 	PORTB &= ~_BV(PB6);
+#endif
 	enableTransmitter();
 }
 
@@ -258,14 +263,19 @@ uint8_t cabBusTransmit(void)
 
 void cabBusInit(uint8_t addr)
 {
+#ifdef DEBUG
 	DDRB |= _BV(PB6);  // For analyzing response time
+#endif
 
-	// Setup Timer 2 for 300us post ping delay
-	// 100us to bridge the 2nd stop bit (we get interrupt after the first stop bit) + 100us minimum before response (see Cab Bus spec) + 100us guardband
+	// Setup Timer 2 for 800us post ping delay
+	// Required minimum = 100us to bridge the 2nd stop bit (we get interrupt after the first stop bit) + 100us minimum before response (see Cab Bus spec)
+	// However, in some cases, the bus is held for an additional 300us (empirical observations)
+	// An 800us delay still falls within the 800us max delay since we start the timer before the 2nd stop bit
+	// Besides, a ProCab and the NCE USB interface appears to wait ~1.12us before responding.
 	TCNT2 = 0;
-	OCR2A = 188;  // 50ns (20MHz) * 32 * 188 = 300.8us
+	OCR2A = 250;  // 	50ns (20MHz) * 64 * 250 = 800us
 	TCCR2A = _BV(WGM21);
-	TCCR2B = _BV(CS21) | _BV(CS20);  // Divide-by-32
+	TCCR2B = _BV(CS22);  // Divide-by-64
 	TIMSK2 = 0;  // Disable interrupt for now
 
 #undef BAUD

@@ -31,30 +31,6 @@ LICENSE:
 #include "cabbus.h"
 #include "cabbus-cache.h"
 
-#ifdef DEBUG
-void debugInit(void)
-{
-	DDRD |= _BV(PD5) | _BV(PD6);
-	PORTD &= ~(_BV(PD5) | _BV(PD6));
-}
-
-void debug5(uint8_t val)
-{
-	if(val)
-		PORTD |= _BV(PD5);
-	else
-		PORTD &= ~_BV(PD5);
-}
-
-void debug6(uint8_t val)
-{
-	if(val)
-		PORTD |= _BV(PD6);
-	else
-		PORTD &= ~_BV(PD6);
-}
-#endif
-
 #define LOCO_ADDRESS_SHORT 0x8000
 
 #define MRBUS_TX_BUFFER_DEPTH 16
@@ -438,7 +414,7 @@ int main(void)
 	uint8_t mrbusTxBuffer[MRBUS_BUFFER_SIZE];
 	uint16_t decisecs_tmp = 0;
 	
-	uint8_t enableFastTime = 0;
+	uint8_t enableFastTime = 1;
 
 	init();
 
@@ -464,16 +440,13 @@ int main(void)
 
 	wdt_reset();
 
-#ifdef DEBUG
-	debugInit();
-#endif
-
 	while(1)
 	{
 		wdt_reset();
 
 		readDipSwitches();
 		
+#ifndef DEBUG
 		DDRB |= _BV(PB7);  // Set PB7 as output pulling low
 		PORTB &= ~_BV(PB7);
 		
@@ -487,6 +460,7 @@ int main(void)
 		// Check programming header pins 4 & 6
 		// If a jumper is on 4-6, GND will pull PB5 low.
 		// Do something useful eventually
+#endif
 		
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 		{
@@ -512,9 +486,7 @@ int main(void)
 		if (mrbusPktQueueDepth(&mrbeeTxQueue))
 		{
 			wdt_reset();
-#ifndef DEBUG
 			mrbeeTransmit();
-#endif
 		}
 
 		if (cabBusPktQueueDepth(&cabBusRxQueue))
