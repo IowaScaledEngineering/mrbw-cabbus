@@ -121,7 +121,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 						TIFR2 |= _BV(OCF2A);  // Clear any previous interrupts
 						TIMSK2 |= _BV(OCIE2A);  // Enable timer2 interrupt
 #ifdef DEBUG
-//						PORTB |= _BV(PB6);
+						PORTB |= _BV(PB6);
 #endif
 					}
 				}
@@ -129,9 +129,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 				if(0x80 == cabBusRxBuffer[0])
 				{
 					// Broadcast command
-PORTB |= _BV(PB6);
 					cabBusPktQueuePush(&cabBusRxQueue, cabBusRxBuffer, byte_count);
-PORTB &= ~_BV(PB6);
 				}
 
 				// Reset byte_count so the current data byte gets stored in the correct (index = 0) spot
@@ -192,7 +190,7 @@ ISR(TIMER2_COMPA_vect)
 {
 	TIMSK2 &= ~_BV(OCIE2A);  // Disable timer2 interrupt
 #ifdef DEBUG
-//	PORTB &= ~_BV(PB6);
+	PORTB &= ~_BV(PB6);
 #endif
 	enableTransmitter();
 }
