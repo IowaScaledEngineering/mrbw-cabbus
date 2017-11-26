@@ -252,7 +252,7 @@ void PktHandler(void)
 		// Policy for sending Cab Bus updates:
 		//    1) Locomotive address changed.  This throttle was controlling a different locomotive before, so update everything.
 		//    2) Certain items have changed since last time.  Update only those items that changed.
-		//    3) No changes since last time.  Update everything as a refresh.
+		//    3) No changes since last time.  Update speed and direction.
 
 		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_SPEED_DIRECTION_CHANGED(delta) || (0 == delta))
 		{
@@ -280,7 +280,7 @@ void PktHandler(void)
 		}
 
 		// Send function states
-		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_1_CHANGED(delta) || (0 == delta))
+		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_1_CHANGED(delta))
 		{
 			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
 			cabBusBuffer[1] = c.locoAddress & 0x7F;
@@ -289,7 +289,7 @@ void PktHandler(void)
 			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 		}
 
-		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_2_CHANGED(delta) || (0 == delta))
+		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_2_CHANGED(delta))
 		{
 			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
 			cabBusBuffer[1] = c.locoAddress & 0x7F;
@@ -298,7 +298,7 @@ void PktHandler(void)
 			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 		}
 
-		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_3_CHANGED(delta) || (0 == delta))
+		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_3_CHANGED(delta))
 		{
 			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
 			cabBusBuffer[1] = c.locoAddress & 0x7F;
@@ -307,7 +307,7 @@ void PktHandler(void)
 			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 		}
 
-		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_4_CHANGED(delta) || (0 == delta))
+		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_4_CHANGED(delta))
 		{
 			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
 			cabBusBuffer[1] = c.locoAddress & 0x7F;
@@ -316,7 +316,7 @@ void PktHandler(void)
 			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 		}
 
-		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_5_CHANGED(delta) || (0 == delta))
+		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_5_CHANGED(delta))
 		{
 			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
 			cabBusBuffer[1] = c.	locoAddress & 0x7F;
