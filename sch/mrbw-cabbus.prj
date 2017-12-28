@@ -1,4 +1,4 @@
-schematics mrb-ap.sch
-output-name ../pcb/mrb-ap
+schematics mrbw-cabbus.sch
+output-name ../pcb/mrbw-cabbus
 skip-m4
 elements-dir ../../../footprints
