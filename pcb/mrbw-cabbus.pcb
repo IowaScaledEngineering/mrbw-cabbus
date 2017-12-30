@@ -807,7 +807,7 @@ Via[880.00mil 1035.00mil 24.00mil 20.00mil 0.0000 10.00mil "" ""]
 Via[965.75mil 1035.00mil 24.00mil 20.00mil 0.0000 10.00mil "" ""]
 Via[965.75mil 985.00mil 24.00mil 20.00mil 0.0000 10.00mil "" ""]
 Via[775.00mil 1290.00mil 24.00mil 20.00mil 0.0000 10.00mil "" ""]
-Via[775.00mil 1120.00mil 24.00mil 20.00mil 0.0000 10.00mil "" ""]
+Via[775.00mil 1155.00mil 24.00mil 20.00mil 0.0000 10.00mil "" ""]
 Via[895.00mil 29.0444mm 24.00mil 20.00mil 0.0000 10.00mil "" "thermal(1S)"]
 Via[1545.00mil 605.00mil 24.00mil 20.00mil 0.0000 10.00mil "" ""]
 Via[1645.00mil 605.00mil 24.00mil 20.00mil 0.0000 10.00mil "" ""]
@@ -1657,7 +1657,7 @@ Layer(1 "top")
 	Line[745.00mil 1560.00mil 745.00mil 1225.00mil 10.00mil 20.00mil ""]
 	Line[645.00mil 1690.00mil 775.00mil 1560.00mil 10.00mil 20.00mil "clearline"]
 	Line[775.00mil 1560.00mil 775.00mil 1290.00mil 10.00mil 20.00mil "clearline"]
-	Line[775.00mil 1120.00mil 775.00mil 1010.00mil 10.00mil 20.00mil "clearline"]
+	Line[775.00mil 1155.00mil 775.00mil 1010.00mil 10.00mil 20.00mil "clearline"]
 	Line[934.25mil 29.0444mm 895.00mil 29.0444mm 10.00mil 20.00mil "clearline"]
 	Line[1440.00mil 215.00mil 1440.00mil 570.00mil 50.00mil 20.00mil ""]
 	Line[1440.00mil 570.00mil 1525.00mil 655.00mil 50.00mil 20.00mil "clearline"]
@@ -1840,6 +1840,7 @@ Layer(1 "top")
 	Line[2530.00mil 1840.00mil 2495.00mil 1805.00mil 10.00mil 20.00mil "clearline"]
 	Line[1545.00mil 337.60mil 1545.00mil 215.00mil 20.00mil 20.00mil ""]
 	Line[1155.00mil 300.00mil 1245.00mil 210.00mil 40.00mil 20.00mil ""]
+	Line[965.75mil 29.0444mm 965.75mil 1210.00mil 10.00mil 20.00mil ""]
 	Polygon("clearpoly")
 	(
 		[1210.00mil 1150.00mil] [1600.00mil 1150.00mil] [1600.00mil 1540.00mil] [1210.00mil 1540.00mil] 
@@ -1895,18 +1896,6 @@ Layer(1 "top")
 	Polygon("clearpoly")
 	(
 		[535.00mil 1055.00mil] [630.00mil 1055.00mil] [630.00mil 1265.00mil] [535.00mil 1265.00mil] 
-	)
-	Polygon("clearpoly")
-	(
-		[535.00mil 1265.00mil] [945.00mil 1265.00mil] [945.00mil 1145.00mil] [535.00mil 1145.00mil] 
-	)
-	Polygon("clearpoly")
-	(
-		[830.00mil 1355.00mil] [1060.00mil 1355.00mil] [1060.00mil 1295.00mil] [830.00mil 1295.00mil] 
-	)
-	Polygon("clearpoly")
-	(
-		[830.00mil 1355.00mil] [990.00mil 1355.00mil] [990.00mil 1145.00mil] [830.00mil 1145.00mil] 
 	)
 	Polygon("clearpoly")
 	(
@@ -1988,12 +1977,33 @@ Layer(1 "top")
 	(
 		[2075.00mil 345.00mil] [2015.00mil 345.00mil] [2015.00mil 215.00mil] [2075.00mil 215.00mil] 
 	)
+	Polygon("clearpoly")
+	(
+		[915.00mil 1355.00mil] [1060.00mil 1355.00mil] [1060.00mil 1295.00mil] [915.00mil 1295.00mil] 
+	)
+	Polygon("clearpoly")
+	(
+		[930.00mil 1355.00mil] [915.00mil 1355.00mil] [825.00mil 1265.00mil] [825.00mil 1245.00mil] [930.00mil 1245.00mil] 
+	)
+	Polygon("clearpoly")
+	(
+		[1075.00mil 1295.00mil] [985.00mil 1205.00mil] [960.00mil 1205.00mil] [960.00mil 1210.00mil] [960.00mil 1320.00mil] 
+		[1075.00mil 1320.00mil] 
+	)
+	Polygon("clearpoly")
+	(
+		[535.00mil 1265.00mil] [985.00mil 1265.00mil] [985.00mil 1180.00mil] [535.00mil 1180.00mil] 
+	)
+	Polygon("clearpoly")
+	(
+		[985.00mil 1180.00mil] [915.00mil 1180.00mil] [915.00mil 1355.00mil] [985.00mil 1355.00mil] 
+	)
 )
 Layer(2 "bottom")
 (
 	Line[880.00mil 985.00mil 880.00mil 1035.00mil 10.00mil 20.00mil "clearline"]
 	Line[965.75mil 1035.00mil 965.75mil 985.00mil 10.00mil 20.00mil "clearline"]
-	Line[775.00mil 1290.00mil 775.00mil 1120.00mil 10.00mil 20.00mil "clearline"]
+	Line[775.00mil 1290.00mil 775.00mil 1155.00mil 10.00mil 20.00mil "clearline"]
 	Line[1545.00mil 605.00mil 1545.00mil 685.00mil 10.00mil 20.00mil "clearline"]
 	Line[1545.00mil 685.00mil 1590.00mil 730.00mil 10.00mil 20.00mil "clearline"]
 	Line[1590.00mil 730.00mil 1590.00mil 855.00mil 10.00mil 20.00mil "clearline"]
@@ -2128,7 +2138,7 @@ Layer(5 "silk")
 	Text[2555.00mil 1604.50mil 0 127 "ProtoThrottle" "clearline"]
 	Text[825.00mil 120.00mil 0 100 "Iowa Scaled" "clearline"]
 	Text[825.00mil 180.00mil 0 100 "Engineering" "clearline"]
-	Text[605.00mil 35.00mil 0 100 "http://iascaled.com" "clearline"]
+	Text[620.00mil 35.00mil 0 100 "http://iascaled.com" "clearline"]
 	Polygon("clearpoly")
 	(
 		[78.1159mm 49.7309mm] [78.0153mm 1955.20mil] [77.9808mm 49.5491mm] [77.9945mm 49.4690mm] [78.0443mm 1945.10mil] 
