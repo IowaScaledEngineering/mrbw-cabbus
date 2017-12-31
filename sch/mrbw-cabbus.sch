@@ -222,10 +222,10 @@ description=16V
 C 69700 47300 1 0 0 gnd-1.sym
 N 69800 48500 69800 49100 4
 N 69800 50000 69800 58000 4
-T 67000 40900 9 10 1 0 0 0 1
-MRBus <-> MRBee (XBee) Access Point
+T 66900 40900 9 10 1 0 0 0 1
+ProtoThrottle Receiver for NCE/Lenz
 T 66800 40600 9 10 1 0 0 0 1
-mrb-ap.sch
+mrbw-cabbus.sch
 T 67000 40300 9 10 1 0 0 0 1
 1
 T 68500 40300 9 10 1 0 0 0 1
@@ -648,7 +648,7 @@ C 42700 50400 1 0 0 mcp1703-1.sym
 T 44000 51350 5 10 1 1 0 0 1
 refdes=U4
 T 43800 51350 5 10 1 1 0 6 1
-device=MCP1703
+device=MCP1703-33
 T 43900 50600 5 10 1 1 0 2 1
 footprint=SOT89
 }
