@@ -1796,10 +1796,6 @@ Layer(1 "top")
 	Line[2495.00mil 1805.00mil 2495.00mil 1600.00mil 10.00mil 20.00mil "clearline"]
 	Line[2495.00mil 1600.00mil 60.6491mm 37.9161mm 10.00mil 20.00mil "clearline"]
 	Line[60.6491mm 37.9161mm 53.3014mm 37.9161mm 10.00mil 20.00mil "clearline"]
-	Line[86.4360mm 27.8600mm 86.4360mm 29.5150mm 10.00mil 20.00mil "clearline"]
-	Line[86.4360mm 29.5150mm 3235.00mil 1330.00mil 10.00mil 20.00mil "clearline"]
-	Line[3235.00mil 1330.00mil 2355.00mil 1330.00mil 10.00mil 20.00mil "clearline"]
-	Line[2355.00mil 1330.00mil 2185.00mil 1160.00mil 10.00mil 20.00mil "clearline"]
 	Line[60.00mil 450.00mil 60.00mil 400.00mil 40.00mil 20.00mil "clearline"]
 	Line[60.00mil 400.00mil 100.00mil 360.00mil 40.00mil 20.00mil "clearline"]
 	Line[100.00mil 360.00mil 270.00mil 360.00mil 40.00mil 20.00mil "clearline"]
@@ -1839,6 +1835,9 @@ Layer(1 "top")
 	Line[50.5351mm 13.7269mm 1800.00mil 13.7269mm 10.00mil 20.00mil "clearline"]
 	Line[2680.00mil 2230.00mil 2680.00mil 1840.00mil 30.00mil 20.00mil "clearline"]
 	Line[2415.00mil 80.00mil 2415.00mil 195.00mil 10.00mil 20.00mil "clearline"]
+	Line[61.6460mm 29.8600mm 64.1500mm 29.8600mm 10.00mil 20.00mil "clearline"]
+	Line[64.1500mm 29.8600mm 2540.00mil 1190.00mil 10.00mil 20.00mil ""]
+	Line[2540.00mil 1190.00mil 2540.00mil 1220.00mil 10.00mil 20.00mil ""]
 	Polygon("clearpoly")
 	(
 		[1210.00mil 1150.00mil] [1600.00mil 1150.00mil] [1600.00mil 1540.00mil] [1210.00mil 1540.00mil] 
@@ -2352,6 +2351,7 @@ NetList()
 		Connect("U3-2")
 		Connect("U4-1")
 		Connect("U5-7")
+		Connect("XU6-9")
 		Connect("XU6-10")
 	)
 	Net("unnamed_net1" "(unknown)")
@@ -2412,7 +2412,6 @@ NetList()
 		Connect("U5-1")
 		Connect("U5-8")
 		Connect("XU6-1")
-		Connect("XU6-13")
 	)
 	Net("unnamed_net10" "(unknown)")
 	(
