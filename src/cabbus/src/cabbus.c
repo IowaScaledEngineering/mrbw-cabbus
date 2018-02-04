@@ -32,19 +32,20 @@ LICENSE:
 #include <util/delay.h>
 #include "cabbus.h"
 
-#define CABBUS_STATUS_BROADCAST_CMD    0x01
-#define CABBUS_STATUS_COLLISION        0x10
-#define CABBUS_STATUS_RESPONSE         0x20
-#define CABBUS_STATUS_PING             0x40
-#define CABBUS_STATUS_TX_PENDING       0x80
+#define CABBUS_STATUS_BROADCAST_CMD        0x01
+#define CABBUS_STATUS_TRANSMITTING         0x02
+#define CABBUS_STATUS_COLLISION_DETECTED   0x10
+#define CABBUS_STATUS_RESPONSE_SENT        0x20
+#define CABBUS_STATUS_PING_RECEIVED        0x40
+#define CABBUS_STATUS_TX_PENDING           0x80
 
 static volatile uint8_t cabBusStatus = 0;
 
 uint8_t cabBusPing(void)
 {
-	if(cabBusStatus & CABBUS_STATUS_PING)
+	if(cabBusStatus & CABBUS_STATUS_PING_RECEIVED)
 	{
-		cabBusStatus &= ~CABBUS_STATUS_PING;
+		cabBusStatus &= ~CABBUS_STATUS_PING_RECEIVED;
 		return 1;
 	}
 	else
@@ -53,9 +54,9 @@ uint8_t cabBusPing(void)
 
 uint8_t cabBusResponse(void)
 {
-	if(cabBusStatus & CABBUS_STATUS_RESPONSE)
+	if(cabBusStatus & CABBUS_STATUS_RESPONSE_SENT)
 	{
-		cabBusStatus &= ~CABBUS_STATUS_RESPONSE;
+		cabBusStatus &= ~CABBUS_STATUS_RESPONSE_SENT;
 		return 1;
 	}
 	else
@@ -64,9 +65,9 @@ uint8_t cabBusResponse(void)
 
 uint8_t cabBusCollision(void)
 {
-	if(cabBusStatus & CABBUS_STATUS_COLLISION)
+	if(cabBusStatus & CABBUS_STATUS_COLLISION_DETECTED)
 	{
-		cabBusStatus &= ~CABBUS_STATUS_COLLISION;
+		cabBusStatus &= ~CABBUS_STATUS_COLLISION_DETECTED;
 		return 1;
 	}
 	else
@@ -95,6 +96,8 @@ void enableTransmitter(void)
 
 	// Enable transmit interrupt
 	CABBUS_UART_CSR_B |= _BV(CABBUS_UART_UDRIE);
+
+	cabBusStatus |= CABBUS_STATUS_TRANSMITTING;
 }
 
 ISR(CABBUS_UART_RX_INTERRUPT)
@@ -149,10 +152,10 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 				if(cabBusAddress == (data & 0x3F))
 				{
 					// It's for us, so respond if anything is pending
-					cabBusStatus |= CABBUS_STATUS_PING;
+					cabBusStatus |= CABBUS_STATUS_PING_RECEIVED;
 					if(cabBusStatus & CABBUS_STATUS_TX_PENDING)
 					{
-						cabBusStatus |= CABBUS_STATUS_RESPONSE;
+						cabBusStatus |= CABBUS_STATUS_RESPONSE_SENT;
 						TCNT2 = 0;  // Reset timer2
 						TIFR2 |= _BV(OCF2A);  // Clear any previous interrupts
 						TIMSK2 |= _BV(OCIE2A);  // Enable timer2 interrupt
@@ -167,6 +170,24 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 				{
 					cabBusPktQueuePush(&cabBusRxQueue, cabBusRxBuffer, byte_count);
 				}
+
+				// If the previously stored data was a ping response from our address, signal a collision
+				//   Only look at message with an actual response (byte_count > 1)
+				if(cabBusAddress == (cabBusRxBuffer[0] & 0x3F) && (byte_count > 1))
+				{
+#ifdef DEBUG
+PORTB |= _BV(PB5);
+#endif
+					if(!(cabBusStatus & CABBUS_STATUS_TRANSMITTING))
+						cabBusStatus |= CABBUS_STATUS_COLLISION_DETECTED;
+#ifdef DEBUG
+PORTB &= ~_BV(PB5);
+#endif
+				}
+
+				// Clear the flag here on every new ping
+				// It will get set later once enableTransmitter is called
+				cabBusStatus &= ~CABBUS_STATUS_TRANSMITTING;
 
 				// Reset byte_count so the current data byte gets stored in the correct (index = 0) spot
 				byte_count = 0;
@@ -299,7 +320,7 @@ uint8_t cabBusTransmit(void)
 void cabBusInit(uint8_t addr)
 {
 #ifdef DEBUG
-	DDRB |= _BV(PB6);  // For analyzing response time
+	DDRB |= (_BV(PB6) | _BV(PB5));  // For analyzing response time and other debug
 #endif
 
 	// Setup Timer 2 for 800us post ping delay

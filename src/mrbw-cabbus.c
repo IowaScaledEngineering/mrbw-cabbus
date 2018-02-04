@@ -70,13 +70,15 @@ typedef struct
 TimeData fastTime;
 uint8_t enableFastTime = 1;
 
-#define PING_LED_TIME       2;
+#define COLLISON_LED_TIME   100;
 #define RESPONSE_LED_TIME   2;
 #define XBEE_RX_LED_TIME    2;
+#define PING_LED_TIME       2;
 
-uint8_t pingTimer = 0;
+uint8_t collisionTimer = 0;
 uint8_t responseTimer = 0;
 uint8_t xbeeRxTimer = 0;
+uint8_t pingTimer = 0;
 
 typedef enum
 {
@@ -270,6 +272,7 @@ void PktHandler(void)
 	{
 		// Status packet and addressed to us
 		CabData c;
+		xbeeRxTimer = XBEE_RX_LED_TIME;
 
 		c.locoAddress = ((uint16_t)rxBuffer[6] << 8) + rxBuffer[7];
 		if(c.locoAddress & LOCO_ADDRESS_SHORT)
@@ -419,14 +422,17 @@ ISR(TIMER0_COMPA_vect)
 		decisecs++;
 	}
 	
-	if(pingTimer)
-		pingTimer--;
+	if(collisionTimer)
+		collisionTimer--;
 
 	if(responseTimer)
 		responseTimer--;
 
 	if(xbeeRxTimer)
 		xbeeRxTimer--;
+
+	if(pingTimer)
+		pingTimer--;
 }
 
 void init(void)
@@ -549,7 +555,6 @@ int main(void)
 		// Handle any MRBus packets that may have come in
 		if (mrbusPktQueueDepth(&mrbeeRxQueue))
 		{
-			xbeeRxTimer = XBEE_RX_LED_TIME;
 			PktHandler();
 		}
 
@@ -636,6 +641,15 @@ int main(void)
 			setLed(RESPONSE);
 		else
 			clearLed(RESPONSE);
+
+		if(cabBusCollision())
+		{
+			collisionTimer = COLLISON_LED_TIME;
+		}
+		if(collisionTimer)
+			setLed(COLLISON);
+		else
+			clearLed(COLLISON);
 
 		if(xbeeRxTimer)
 			setLed(XBEE_RX);
