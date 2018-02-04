@@ -175,14 +175,8 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 				//   Only look at message with an actual response (byte_count > 1)
 				if(cabBusAddress == (cabBusRxBuffer[0] & 0x3F) && (byte_count > 1))
 				{
-#ifdef DEBUG
-PORTB |= _BV(PB5);
-#endif
 					if(!(cabBusStatus & CABBUS_STATUS_TRANSMITTING))
 						cabBusStatus |= CABBUS_STATUS_COLLISION_DETECTED;
-#ifdef DEBUG
-PORTB &= ~_BV(PB5);
-#endif
 				}
 
 				// Clear the flag here on every new ping
