@@ -68,6 +68,7 @@ typedef struct
 } TimeData;
 
 TimeData fastTime;
+uint8_t enableFastTime = 1;
 
 
 void createVersionPacket(uint8_t destAddr, uint8_t *buf)
@@ -382,22 +383,37 @@ void init(void)
 #endif
 
 	// Configure DIP switches
-	DDRC &= 0x07;  // PC3 - PC7 = inputs
-	PORTC |= 0xF8; // PC3 - PC7 pullups enabled
+	DDRA = 0;     // Inputs
+	PORTA = 0xFF; // Pullups enabled
+	DDRC = 0;     // Inputs
+	PORTC = 0xFF; // Pullups enabled
+
+	// Configure status LEDs
+	PORTB &= ~(_BV(PB0) | _BV(PB1) | _BV(PB2) | _BV(PB3));
+	DDRB |= (_BV(PB0) | _BV(PB1) | _BV(PB2) | _BV(PB3));
 
 	initialize100HzTimer();
 }
 
-uint8_t oldSwitches = 0xFF;  // Default to something that can never be set on switches so it updates them the first time
-
 void readDipSwitches(void)
 {
-	uint8_t switches = (PINC >> 3) & 0x1F;
-	if(oldSwitches != switches)
+	static uint8_t oldSw1 = 0x00;
+	static uint8_t oldSw2 = 0x00;
+	static uint8_t first = 1;
+
+	uint8_t sw1 = ~PINA;
+	uint8_t sw2 = ~PINC;
+
+	if(first || (oldSw1 != sw1) || (oldSw2 != sw2))
 	{
-		cabBusInit(switches);
-		mrbus_dev_addr = 0xD0 + switches;
-		oldSwitches = switches;
+		cabBusInit(sw1 & 0x3F);
+		mrbus_dev_addr = 0xD0 + (sw2 & 0x1F);
+		if(sw2 & 0x20)
+			enableFastTime = 1;
+		else
+			enableFastTime = 0;
+		oldSw1 = sw1;
+		oldSw2 = sw2;
 	}
 }
 
@@ -414,8 +430,6 @@ int main(void)
 	uint8_t mrbusTxBuffer[MRBUS_BUFFER_SIZE];
 	uint16_t decisecs_tmp = 0;
 	
-	uint8_t enableFastTime = 1;
-
 	init();
 
 	wdt_reset();
@@ -445,22 +459,6 @@ int main(void)
 		wdt_reset();
 
 		readDipSwitches();
-		
-#ifndef DEBUG
-		DDRB |= _BV(PB7);  // Set PB7 as output pulling low
-		PORTB &= ~_BV(PB7);
-		
-		DDRB &= ~(_BV(PB5) | _BV(PB6));  // Set PB5 and PB6 as input, pull-up enabled
-		PORTB |= (_BV(PB5) | _BV(PB6));
-		
-		// Check programming header pins 1 & 3
-		// If a jumper is on 1-3, PB7 will pull PB6 low.
-		enableFastTime = PINB & _BV(PB6);
-		
-		// Check programming header pins 4 & 6
-		// If a jumper is on 4-6, GND will pull PB5 low.
-		// Do something useful eventually
-#endif
 		
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 		{
