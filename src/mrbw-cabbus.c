@@ -70,6 +70,59 @@ typedef struct
 TimeData fastTime;
 uint8_t enableFastTime = 1;
 
+#define PING_LED_TIME       2;
+#define RESPONSE_LED_TIME   2;
+#define XBEE_RX_LED_TIME    2;
+
+uint8_t pingTimer = 0;
+uint8_t responseTimer = 0;
+uint8_t xbeeRxTimer = 0;
+
+typedef enum
+{
+	COLLISON,
+	RESPONSE,
+	XBEE_RX,
+	PING,
+} StatusLED;
+
+void setLed(StatusLED led)
+{
+	switch(led)
+	{
+		case COLLISON:
+			PORTB |= _BV(PB3);
+			break;
+		case RESPONSE:
+			PORTB |= _BV(PB2);
+			break;
+		case XBEE_RX:
+			PORTB |= _BV(PB1);
+			break;
+		case PING:
+			PORTB |= _BV(PB0);
+			break;
+	}
+}
+
+void clearLed(StatusLED led)
+{
+	switch(led)
+	{
+		case COLLISON:
+			PORTB &= ~_BV(PB3);
+			break;
+		case RESPONSE:
+			PORTB &= ~_BV(PB2);
+			break;
+		case XBEE_RX:
+			PORTB &= ~_BV(PB1);
+			break;
+		case PING:
+			PORTB &= ~_BV(PB0);
+			break;
+	}
+}
 
 void createVersionPacket(uint8_t destAddr, uint8_t *buf)
 {
@@ -365,6 +418,15 @@ ISR(TIMER0_COMPA_vect)
 		ticks = 0;
 		decisecs++;
 	}
+	
+	if(pingTimer)
+		pingTimer--;
+
+	if(responseTimer)
+		responseTimer--;
+
+	if(xbeeRxTimer)
+		xbeeRxTimer--;
 }
 
 void init(void)
@@ -395,14 +457,22 @@ void init(void)
 	initialize100HzTimer();
 }
 
+uint8_t reverseBits(uint8_t b) {
+   b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+   b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+   b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+   return b;
+}
+
 void readDipSwitches(void)
 {
 	static uint8_t oldSw1 = 0x00;
 	static uint8_t oldSw2 = 0x00;
 	static uint8_t first = 1;
 
+	// Invert and swap bit order
 	uint8_t sw1 = ~PINA;
-	uint8_t sw2 = ~PINC;
+	uint8_t sw2 = reverseBits(~PINC);
 
 	if(first || (oldSw1 != sw1) || (oldSw2 != sw2))
 	{
@@ -415,6 +485,7 @@ void readDipSwitches(void)
 		oldSw1 = sw1;
 		oldSw2 = sw2;
 	}
+	first = 0;
 }
 
 uint8_t adjustCabBusASCII(uint8_t chr)
@@ -478,15 +549,18 @@ int main(void)
 		// Handle any MRBus packets that may have come in
 		if (mrbusPktQueueDepth(&mrbeeRxQueue))
 		{
+			xbeeRxTimer = XBEE_RX_LED_TIME;
 			PktHandler();
 		}
 
+		// Transmit any pending MRBus packets
 		if (mrbusPktQueueDepth(&mrbeeTxQueue))
 		{
 			wdt_reset();
 			mrbeeTransmit();
 		}
 
+		// Handle any incoming Cab Bus data
 		if (cabBusPktQueueDepth(&cabBusRxQueue))
 		{
 			uint8_t rxBuffer[CABBUS_BUFFER_SIZE];
@@ -536,12 +610,38 @@ int main(void)
 			}
 		}
 
+		// Handle any pending Cab Bus packets
 		if(cabBusPktQueueDepth(&cabBusTxQueue))
 		{
 			// Packet pending, so queue it up for transmit
 			wdt_reset();
 			cabBusTransmit();
 		}
+		
+		// Deal with status LEDs from Cab Bus
+		if(cabBusPing())
+		{
+			pingTimer = PING_LED_TIME;
+		}
+		if(pingTimer)
+			setLed(PING);
+		else
+			clearLed(PING);
+
+		if(cabBusResponse())
+		{
+			responseTimer = RESPONSE_LED_TIME;
+		}
+		if(responseTimer)
+			setLed(RESPONSE);
+		else
+			clearLed(RESPONSE);
+
+		if(xbeeRxTimer)
+			setLed(XBEE_RX);
+		else
+			clearLed(XBEE_RX);
+
 	}
 
 }

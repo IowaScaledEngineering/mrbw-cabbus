@@ -118,6 +118,10 @@ extern CabBusPktQueue cabBusRxQueue;
 uint8_t cabBusTransmit(void);
 void cabBusInit(uint8_t addr);
 
+uint8_t cabBusPing(void);
+uint8_t cabBusResponse(void);
+uint8_t cabBusCollision(void);
+
 #endif // CABBUS_AVR_H
 
 

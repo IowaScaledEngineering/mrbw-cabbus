@@ -33,11 +33,46 @@ LICENSE:
 #include "cabbus.h"
 
 #define CABBUS_STATUS_BROADCAST_CMD    0x01
-#define CABBUS_STATUS_DUMB_CAB         0x02
-#define CABBUS_STATUS_SMART_CAB        0x04
+#define CABBUS_STATUS_COLLISION        0x10
+#define CABBUS_STATUS_RESPONSE         0x20
+#define CABBUS_STATUS_PING             0x40
 #define CABBUS_STATUS_TX_PENDING       0x80
 
 static volatile uint8_t cabBusStatus = 0;
+
+uint8_t cabBusPing(void)
+{
+	if(cabBusStatus & CABBUS_STATUS_PING)
+	{
+		cabBusStatus &= ~CABBUS_STATUS_PING;
+		return 1;
+	}
+	else
+		return 0;
+}
+
+uint8_t cabBusResponse(void)
+{
+	if(cabBusStatus & CABBUS_STATUS_RESPONSE)
+	{
+		cabBusStatus &= ~CABBUS_STATUS_RESPONSE;
+		return 1;
+	}
+	else
+		return 0;
+}
+
+uint8_t cabBusCollision(void)
+{
+	if(cabBusStatus & CABBUS_STATUS_COLLISION)
+	{
+		cabBusStatus &= ~CABBUS_STATUS_COLLISION;
+		return 1;
+	}
+	else
+		return 0;
+}
+
 
 static volatile uint8_t cabBusTxBuffer[CABBUS_BUFFER_SIZE];
 // While cabbusRxBuffer is volatile, it's only accessed within the ISR
@@ -47,7 +82,6 @@ static volatile uint8_t cabBusAddress = 0;
 static volatile uint8_t cabBusTxIndex = 0;
 CabBusPktQueue cabBusTxQueue;
 CabBusPktQueue cabBusRxQueue;
-
 
 #include <util/parity.h>
 
@@ -115,8 +149,10 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 				if(cabBusAddress == (data & 0x3F))
 				{
 					// It's for us, so respond if anything is pending
+					cabBusStatus |= CABBUS_STATUS_PING;
 					if(cabBusStatus & CABBUS_STATUS_TX_PENDING)
 					{
+						cabBusStatus |= CABBUS_STATUS_RESPONSE;
 						TCNT2 = 0;  // Reset timer2
 						TIFR2 |= _BV(OCF2A);  // Clear any previous interrupts
 						TIMSK2 |= _BV(OCIE2A);  // Enable timer2 interrupt
@@ -126,9 +162,9 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 					}
 				}
 				
+				// If the previously stored data was a broadcast command, push onto the rx queue before we overwrite it
 				if(0x80 == cabBusRxBuffer[0])
 				{
-					// Broadcast command
 					cabBusPktQueuePush(&cabBusRxQueue, cabBusRxBuffer, byte_count);
 				}
 
