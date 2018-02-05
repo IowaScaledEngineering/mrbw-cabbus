@@ -116,7 +116,7 @@ extern CabBusPktQueue cabBusTxQueue;
 extern CabBusPktQueue cabBusRxQueue;
 
 uint8_t cabBusTransmit(void);
-void cabBusInit(uint8_t addr);
+void cabBusInit(uint8_t addr, uint8_t enableXpressnet);
 
 uint8_t cabBusPing(void);
 uint8_t cabBusResponse(void);

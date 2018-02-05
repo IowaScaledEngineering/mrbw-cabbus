@@ -8,5 +8,6 @@
 #define CABBUS_BUFFER_SIZE  12
 
 #define CABBUS_BAUD 9600
+#define XPRESSNET_BAUD 62500
 
 #endif

@@ -68,7 +68,9 @@ typedef struct
 } TimeData;
 
 TimeData fastTime;
-uint8_t enableFastTime = 1;
+uint8_t enableFastTime = 0;
+
+uint8_t enableXpressnet = 0;
 
 #define COLLISON_LED_TIME   100;
 #define RESPONSE_LED_TIME   2;
@@ -130,7 +132,7 @@ void createVersionPacket(uint8_t destAddr, uint8_t *buf)
 {
 	buf[MRBUS_PKT_DEST] = destAddr;
 	buf[MRBUS_PKT_SRC] = mrbus_dev_addr;
-	buf[MRBUS_PKT_LEN] = 19;
+	buf[MRBUS_PKT_LEN] = enableXpressnet ? 20 : 19;
 	buf[MRBUS_PKT_TYPE] = 'v';
 	buf[6]  = MRBUS_VERSION_WIRELESS;
 	// Software Revision
@@ -139,13 +141,14 @@ void createVersionPacket(uint8_t destAddr, uint8_t *buf)
 	buf[9]  = 0xFF & (GIT_REV); // Software Revision
 	buf[10]  = HWREV_MAJOR; // Hardware Major Revision
 	buf[11]  = HWREV_MINOR; // Hardware Minor Revision
-	buf[12] = 'C';
-	buf[13] = 'A';
-	buf[14] = 'B';
-	buf[15] = ' ';
-	buf[16] = 'B';
-	buf[17] = 'U';
-	buf[18] = 'S';
+	buf[12] = enableXpressnet ? 'X' : 'C';
+	buf[13] = enableXpressnet ? 'P' : 'A';
+	buf[14] = enableXpressnet ? 'R' : 'B';
+	buf[15] = enableXpressnet ? 'E' : ' ';
+	buf[16] = enableXpressnet ? 'S' : 'B';
+	buf[17] = enableXpressnet ? 'N' : 'U';
+	buf[18] = enableXpressnet ? 'E' : 'S';
+	buf[19] = enableXpressnet ? 'T' : ' ';
 }
 
 void createTimePacket(uint8_t *buf)
@@ -482,12 +485,13 @@ void readDipSwitches(void)
 
 	if(first || (oldSw1 != sw1) || (oldSw2 != sw2))
 	{
-		cabBusInit(sw1 & 0x3F);
+		enableXpressnet = sw2 & 0x80;
+
+		cabBusInit(sw1 & 0x3F, enableXpressnet);
 		mrbus_dev_addr = 0xD0 + (sw2 & 0x1F);
-		if(sw2 & 0x20)
-			enableFastTime = 1;
-		else
-			enableFastTime = 0;
+
+		enableFastTime = sw2 & 0x20;
+		
 		oldSw1 = sw1;
 		oldSw2 = sw2;
 	}

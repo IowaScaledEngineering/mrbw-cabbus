@@ -34,12 +34,15 @@ LICENSE:
 
 #define CABBUS_STATUS_BROADCAST_CMD        0x01
 #define CABBUS_STATUS_TRANSMITTING         0x02
+#define CABBUS_STATUS_XPRESSNET            0x04
 #define CABBUS_STATUS_COLLISION_DETECTED   0x10
 #define CABBUS_STATUS_RESPONSE_SENT        0x20
 #define CABBUS_STATUS_PING_RECEIVED        0x40
 #define CABBUS_STATUS_TX_PENDING           0x80
 
 static volatile uint8_t cabBusStatus = 0;
+
+#define XPRESSNET_ENABLED (cabBusStatus & CABBUS_STATUS_XPRESSNET)
 
 uint8_t cabBusPing(void)
 {
@@ -311,11 +314,16 @@ uint8_t cabBusTransmit(void)
 	return(0);
 }
 
-void cabBusInit(uint8_t addr)
+void cabBusInit(uint8_t addr, uint8_t enableXpressnet)
 {
 #ifdef DEBUG
 	DDRB |= (_BV(PB6) | _BV(PB5));  // For analyzing response time and other debug
 #endif
+
+	if(enableXpressnet)
+		cabBusStatus |= CABBUS_STATUS_XPRESSNET;
+	else
+		cabBusStatus &= ~CABBUS_STATUS_XPRESSNET;
 
 	// Setup Timer 2 for 800us post ping delay
 	// Required minimum = 100us to bridge the 2nd stop bit (we get interrupt after the first stop bit) + 100us minimum before response (see Cab Bus spec)
@@ -323,12 +331,24 @@ void cabBusInit(uint8_t addr)
 	// An 800us delay still falls within the 800us max delay since we start the timer before the 2nd stop bit
 	// Besides, a ProCab and the NCE USB interface appears to wait ~1.12us before responding.
 	TCNT2 = 0;
-	OCR2A = 250;  // 	50ns (20MHz) * 64 * 250 = 800us
+	OCR2A = XPRESSNET_ENABLED ? 1 : 250;  // 	50ns (20MHz) * 64 * 250 = 800us, disabled for XpressNet
 	TCCR2A = _BV(WGM21);
 	TCCR2B = _BV(CS22);  // Divide-by-64
 	TIMSK2 = 0;  // Disable interrupt for now
 
 #undef BAUD
+	if(XPRESSNET_ENABLED)
+	{
+#define BAUD XPRESSNET_BAUD
+#include <util/setbaud.h>
+	CABBUS_UART_UBRR = UBRR_VALUE;
+	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X0):0;
+	CABBUS_UART_CSR_B = 0;
+	CABBUS_UART_CSR_C = _BV(USBS0) | _BV(UCSZ01) | _BV(UCSZ00);
+#undef BAUD
+	}
+	else
+	{
 #define BAUD CABBUS_BAUD
 #include <util/setbaud.h>
 	CABBUS_UART_UBRR = UBRR_VALUE;
@@ -336,6 +356,7 @@ void cabBusInit(uint8_t addr)
 	CABBUS_UART_CSR_B = 0;
 	CABBUS_UART_CSR_C = _BV(USBS0) | _BV(UCSZ01) | _BV(UCSZ00);
 #undef BAUD
+	}
 
 	cabBusAddress = addr;
 
