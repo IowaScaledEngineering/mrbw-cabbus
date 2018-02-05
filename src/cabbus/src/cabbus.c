@@ -44,6 +44,8 @@ static volatile uint8_t cabBusStatus = 0;
 
 #define XPRESSNET_ENABLED (cabBusStatus & CABBUS_STATUS_XPRESSNET)
 
+static volatile uint8_t xpressnetAckPending = 0;
+
 uint8_t cabBusPing(void)
 {
 	if(cabBusStatus & CABBUS_STATUS_PING_RECEIVED)
@@ -103,6 +105,25 @@ void enableTransmitter(void)
 	cabBusStatus |= CABBUS_STATUS_TRANSMITTING;
 }
 
+void startTxTimer(void)
+{
+	TCNT2 = 0;  // Reset timer2
+	TIFR2 |= _BV(OCF2A);  // Clear any previous interrupts
+	TIMSK2 |= _BV(OCIE2A);  // Enable timer2 interrupt
+#ifdef DEBUG
+	PORTB |= _BV(PB6);
+#endif
+}
+
+ISR(TIMER2_COMPA_vect)
+{
+	TIMSK2 &= ~_BV(OCIE2A);  // Disable timer2 interrupt
+#ifdef DEBUG
+	PORTB &= ~_BV(PB6);
+#endif
+	enableTransmitter();
+}
+
 ISR(CABBUS_UART_RX_INTERRUPT)
 {
 	uint8_t data = 0;
@@ -113,8 +134,43 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 		// Handle framing errors
 		data = CABBUS_UART_DATA;  // Clear the data register and discard
 	}
+	else if(XPRESSNET_ENABLED)
+	{
+		// XpressNet
+		if(CABBUS_UART_CSR_B & _BV(CABBUS_RXB8))
+		{
+			// Bit 9 set, Address byte
+			data = CABBUS_UART_DATA;
+			uint8_t address = data & 0x1F;
+			if( (!parity_even_bit(data)) && (0x00 == (data & 0x60)) && (address == cabBusAddress) )
+			{
+				// Request Acknowledgement
+				xpressnetAckPending = 1;
+				startTxTimer();
+			}
+			else if( (!parity_even_bit(data)) && (0x40 == (data & 0x60)) )
+			{
+				// Normal inquiry
+				if(address == cabBusAddress)
+				{
+					// It's for us, so respond if anything is pending
+					cabBusStatus |= CABBUS_STATUS_PING_RECEIVED;
+					if(cabBusStatus & CABBUS_STATUS_TX_PENDING)
+					{
+						cabBusStatus |= CABBUS_STATUS_RESPONSE_SENT;
+						startTxTimer();
+					}
+				}
+			}
+		}
+		else
+		{
+			data = CABBUS_UART_DATA;  // Clear the data register and discard
+		}
+	}
     else
     {
+    	// Cab Bus
 		data = CABBUS_UART_DATA;
 
 		// Dumb Cab:
@@ -159,12 +215,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 					if(cabBusStatus & CABBUS_STATUS_TX_PENDING)
 					{
 						cabBusStatus |= CABBUS_STATUS_RESPONSE_SENT;
-						TCNT2 = 0;  // Reset timer2
-						TIFR2 |= _BV(OCF2A);  // Clear any previous interrupts
-						TIMSK2 |= _BV(OCIE2A);  // Enable timer2 interrupt
-#ifdef DEBUG
-						PORTB |= _BV(PB6);
-#endif
+						startTxTimer();
 					}
 				}
 				
@@ -240,15 +291,6 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 */
 }
 
-ISR(TIMER2_COMPA_vect)
-{
-	TIMSK2 &= ~_BV(OCIE2A);  // Disable timer2 interrupt
-#ifdef DEBUG
-	PORTB &= ~_BV(PB6);
-#endif
-	enableTransmitter();
-}
-
 ISR(CABBUS_UART_DONE_INTERRUPT)
 {
 	// Transmit is complete: terminate
@@ -257,14 +299,24 @@ ISR(CABBUS_UART_DONE_INTERRUPT)
 	// Re-enable receive interrupt
 	CABBUS_UART_CSR_B = (CABBUS_UART_CSR_B & ~(_BV(CABBUS_TXCIE) | _BV(CABBUS_UART_UDRIE))) | _BV(CABBUS_RXCIE);
 	cabBusStatus &= ~CABBUS_STATUS_TX_PENDING;
+	xpressnetAckPending = 0;
 }
 
 ISR(CABBUS_UART_TX_INTERRUPT)
 {
 	uint8_t done = 0;
 	
-	CABBUS_UART_DATA = cabBusTxBuffer[cabBusTxIndex++];  //  Get next byte and write to UART
-	done = (cabBusTxIndex >= CABBUS_BUFFER_SIZE || cabBusTxLength == cabBusTxIndex);
+	if(XPRESSNET_ENABLED && xpressnetAckPending)
+	{
+		CABBUS_UART_DATA = 0x20;
+		xpressnetAckPending++;
+		done = (xpressnetAckPending > 2);
+	}
+	else
+	{
+		CABBUS_UART_DATA = cabBusTxBuffer[cabBusTxIndex++];  //  Get next byte and write to UART
+		done = (cabBusTxIndex >= CABBUS_BUFFER_SIZE || cabBusTxLength == cabBusTxIndex);
+	}
 
 	if(done)
 	{
@@ -343,8 +395,8 @@ void cabBusInit(uint8_t addr, uint8_t enableXpressnet)
 #include <util/setbaud.h>
 	CABBUS_UART_UBRR = UBRR_VALUE;
 	CABBUS_UART_CSR_A = (USE_2X)?_BV(U2X0):0;
-	CABBUS_UART_CSR_B = 0;
-	CABBUS_UART_CSR_C = _BV(USBS0) | _BV(UCSZ01) | _BV(UCSZ00);
+	CABBUS_UART_CSR_B = _BV(UCSZ02);
+	CABBUS_UART_CSR_C = _BV(UCSZ01) | _BV(UCSZ00);
 #undef BAUD
 	}
 	else

@@ -278,20 +278,36 @@ void PktHandler(void)
 		xbeeRxTimer = XBEE_RX_LED_TIME;
 
 		c.locoAddress = ((uint16_t)rxBuffer[6] << 8) + rxBuffer[7];
-		if(c.locoAddress & LOCO_ADDRESS_SHORT)
+		if(enableXpressnet)
 		{
-			// Short Address
+			// Remove short address flag since XpressNet doesn't care (assumes <100 = short).  See section 1.3 of the XpressNet Protocol document.
 			c.locoAddress &= ~(LOCO_ADDRESS_SHORT);
-			if(c.locoAddress > 127)
-				c.locoAddress = 0x27FF;
-			else
-				c.locoAddress += 0x2780;
+			
+			// Range check
+			if(c.locoAddress > 9999)
+				c.locoAddress = 9999;
+
+			// Set high bits if address is 100 or greater (assumed to be long address)
+			if(c.locoAddress > 99)
+				c.locoAddress |= 0xC000;
 		}
 		else
 		{
-			// Long Address
-			if(c.locoAddress > 9999)
-				c.locoAddress = 0x270F;
+			if(c.locoAddress & LOCO_ADDRESS_SHORT)
+			{
+				// Short Address
+				c.locoAddress &= ~(LOCO_ADDRESS_SHORT);
+				if(c.locoAddress > 127)
+					c.locoAddress = 0x27FF;
+				else
+					c.locoAddress += 0x2780;
+			}
+			else
+			{
+				// Long Address
+				if(c.locoAddress > 9999)
+					c.locoAddress = 0x270F;
+			}
 		}
 		
 		c.speedDirection = rxBuffer[8];
@@ -319,9 +335,9 @@ void PktHandler(void)
 			// Send Speed/Direction
 			uint8_t speed = c.speedDirection & 0x7F;
 			uint8_t direction = c.speedDirection & 0x80;
-			if(1 == speed)
+			if(!enableXpressnet && (1 == speed))
 			{
-				// E-stop
+				// E-stop for Cab Bus only (XpressNet handles it as part of speed & direction)
 				cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
 				cabBusBuffer[1] = c.locoAddress & 0x7F;
 				cabBusBuffer[2] = (direction) ? 0x06 : 0x05;  // Direction for E-stop
@@ -331,58 +347,130 @@ void PktHandler(void)
 			else
 			{
 				// Speed and direction
-				cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
-				cabBusBuffer[1] = c.locoAddress & 0x7F;
-				cabBusBuffer[2] = (direction) ? 0x04 : 0x03;  // Direction for 128 speed step
-				cabBusBuffer[3] = speed ? speed-1 : 0;  // Speed
-				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+				if(enableXpressnet)
+				{
+					cabBusBuffer[0] = 0xE4;  // Speed & Direction, 128 speed steps
+					cabBusBuffer[1] = 0x13;
+					cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+					cabBusBuffer[3] = c.locoAddress & 0xFF;
+					cabBusBuffer[4] = c.speedDirection;
+					cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
+				}
+				else
+				{
+					cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+					cabBusBuffer[1] = c.locoAddress & 0x7F;
+					cabBusBuffer[2] = (direction) ? 0x04 : 0x03;  // Direction for 128 speed step
+					cabBusBuffer[3] = speed ? speed-1 : 0;  // Speed
+					cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+				}
 			}
 		}
 
 		// Send function states
 		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_1_CHANGED(delta))
 		{
-			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
-			cabBusBuffer[1] = c.locoAddress & 0x7F;
-			cabBusBuffer[2] = 0x07;  // Function Group 1
-			cabBusBuffer[3] = c.functionGroup1;
-			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			if(enableXpressnet)
+			{
+				cabBusBuffer[0] = 0xE4;  // Function Group 1
+				cabBusBuffer[1] = 0x20;
+				cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+				cabBusBuffer[3] = c.locoAddress & 0xFF;
+				cabBusBuffer[4] = c.functionGroup1;  // F0 F4 F3 F2 F1
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
+			}
+			else
+			{
+				cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+				cabBusBuffer[1] = c.locoAddress & 0x7F;
+				cabBusBuffer[2] = 0x07;  // Function Group 1
+				cabBusBuffer[3] = c.functionGroup1;
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			}
 		}
 
 		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_2_CHANGED(delta))
 		{
-			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
-			cabBusBuffer[1] = c.locoAddress & 0x7F;
-			cabBusBuffer[2] = 0x08;  // Function Group 2
-			cabBusBuffer[3] = c.functionGroup2;
-			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			if(enableXpressnet)
+			{
+				cabBusBuffer[0] = 0xE4;  // Function Group 2
+				cabBusBuffer[1] = 0x21;
+				cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+				cabBusBuffer[3] = c.locoAddress & 0xFF;
+				cabBusBuffer[4] = c.functionGroup2;  // F8 F7 F6 F5
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
+			}
+			else
+			{
+				cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+				cabBusBuffer[1] = c.locoAddress & 0x7F;
+				cabBusBuffer[2] = 0x08;  // Function Group 2
+				cabBusBuffer[3] = c.functionGroup2;
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			}
 		}
 
 		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_3_CHANGED(delta))
 		{
-			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
-			cabBusBuffer[1] = c.locoAddress & 0x7F;
-			cabBusBuffer[2] = 0x09;  // Function Group 3
-			cabBusBuffer[3] = c.functionGroup3;
-			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			if(enableXpressnet)
+			{
+				cabBusBuffer[0] = 0xE4;  // Function Group 3
+				cabBusBuffer[1] = 0x22;
+				cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+				cabBusBuffer[3] = c.locoAddress & 0xFF;
+				cabBusBuffer[4] = c.functionGroup3;  // F12 F11 F10 F9
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
+			}
+			else
+			{
+				cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+				cabBusBuffer[1] = c.locoAddress & 0x7F;
+				cabBusBuffer[2] = 0x09;  // Function Group 3
+				cabBusBuffer[3] = c.functionGroup3;
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			}
 		}
 
 		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_4_CHANGED(delta))
 		{
-			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
-			cabBusBuffer[1] = c.locoAddress & 0x7F;
-			cabBusBuffer[2] = 0x15;  // Function Group 4
-			cabBusBuffer[3] = c.functionGroup4;
-			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			if(enableXpressnet)
+			{
+				cabBusBuffer[0] = 0xE4;  // Function Group 4 (http://www.opendcc.net/elektronik/opendcc/xpressnet_commands_e.html)
+				cabBusBuffer[1] = 0x23;
+				cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+				cabBusBuffer[3] = c.locoAddress & 0xFF;
+				cabBusBuffer[4] = c.functionGroup4;  // F20 - F13
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
+			}
+			else
+			{
+				cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+				cabBusBuffer[1] = c.locoAddress & 0x7F;
+				cabBusBuffer[2] = 0x15;  // Function Group 4
+				cabBusBuffer[3] = c.functionGroup4;
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			}
 		}
 
 		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_FN_GROUP_5_CHANGED(delta))
 		{
-			cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
-			cabBusBuffer[1] = c.	locoAddress & 0x7F;
-			cabBusBuffer[2] = 0x16;  // Function Group 5
-			cabBusBuffer[3] = c.functionGroup5;
-			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			if(enableXpressnet)
+			{
+				cabBusBuffer[0] = 0xE4;  // Function Group 5 (http://www.opendcc.net/elektronik/opendcc/xpressnet_commands_e.html)
+				cabBusBuffer[1] = 0x28;
+				cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+				cabBusBuffer[3] = c.locoAddress & 0xFF;
+				cabBusBuffer[4] = c.functionGroup5;  // F28 - F21
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
+			}
+			else
+			{
+				cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
+				cabBusBuffer[1] = c.	locoAddress & 0x7F;
+				cabBusBuffer[2] = 0x16;  // Function Group 5
+				cabBusBuffer[3] = c.functionGroup5;
+				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+			}
 		}
 		
 		updateCabData(rxBuffer[MRBUS_PKT_SRC], &c);
