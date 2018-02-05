@@ -73,8 +73,8 @@ uint8_t enableFastTime = 0;
 uint8_t enableXpressnet = 0;
 
 #define COLLISON_LED_TIME   100;
-#define RESPONSE_LED_TIME   2;
-#define XBEE_RX_LED_TIME    2;
+#define RESPONSE_LED_TIME   5;
+#define XBEE_RX_LED_TIME    5;
 #define PING_LED_TIME       2;
 
 uint8_t collisionTimer = 0;

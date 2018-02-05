@@ -80,12 +80,11 @@ uint8_t cabBusCollision(void)
 }
 
 
-static volatile uint8_t cabBusTxBuffer[CABBUS_BUFFER_SIZE];
-// While cabbusRxBuffer is volatile, it's only accessed within the ISR
-static uint8_t cabBusRxBuffer[CABBUS_BUFFER_SIZE];
-static volatile uint8_t cabBusTxLength = 0;
-static volatile uint8_t cabBusAddress = 0;
+static uint8_t cabBusTxBuffer[CABBUS_BUFFER_SIZE];
+static uint8_t cabBusRxBuffer[CABBUS_BUFFER_SIZE];  // Only accessed within ISR so doesn't need to be volatile
+static uint8_t cabBusTxLength = 0;
 static volatile uint8_t cabBusTxIndex = 0;
+static uint8_t myCabNumber = 0;
 CabBusPktQueue cabBusTxQueue;
 CabBusPktQueue cabBusRxQueue;
 
@@ -142,7 +141,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 			// Bit 9 set, Address byte
 			data = CABBUS_UART_DATA;
 			uint8_t address = data & 0x1F;
-			if( (!parity_even_bit(data)) && (0x00 == (data & 0x60)) && (address == cabBusAddress) )
+			if( (!parity_even_bit(data)) && (0x00 == (data & 0x60)) && (address == myCabNumber) )
 			{
 				// Request Acknowledgement
 				xpressnetAckPending = 1;
@@ -151,7 +150,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 			else if( (!parity_even_bit(data)) && (0x40 == (data & 0x60)) )
 			{
 				// Normal inquiry
-				if(address == cabBusAddress)
+				if(address == myCabNumber)
 				{
 					// It's for us, so respond if anything is pending
 					cabBusStatus |= CABBUS_STATUS_PING_RECEIVED;
@@ -208,7 +207,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 			//         Dumb cabs appear to be fooled by this and cause collisions, though the data appears to still get through.  Observed collisions on scope.
 			{
 				// Must be a ping, so handle it
-				if(cabBusAddress == (data & 0x3F))
+				if(myCabNumber == (data & 0x3F))
 				{
 					// It's for us, so respond if anything is pending
 					cabBusStatus |= CABBUS_STATUS_PING_RECEIVED;
@@ -227,7 +226,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 
 				// If the previously stored data was a ping response from our address, signal a collision
 				//   Only look at message with an actual response (byte_count > 1)
-				if(cabBusAddress == (cabBusRxBuffer[0] & 0x3F) && (byte_count > 1))
+				if(myCabNumber == (cabBusRxBuffer[0] & 0x3F) && (byte_count > 1))
 				{
 					if(!(cabBusStatus & CABBUS_STATUS_TRANSMITTING))
 						cabBusStatus |= CABBUS_STATUS_COLLISION_DETECTED;
@@ -257,38 +256,6 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 		cabBusRxBuffer[byte_count] = data;
 		byte_count++;
 	}
-
-
-/*
-		if(cabBusStatus & CABBUS_STATUS_BROADCAST_CMD)
-		{
-			if( ((data & 0xC0) == 0xC0) || (2 == byte_count) )
-			{
-				// Buffer data, assuming it follows the "11xx xxxx" rule for commands, unless it's broadcast command byte #2 since that sometimes doesn't follow the rule
-				// byte 0: ping
-				// byte 1: Command byte 1 (11xx xxxx)
-				// byte 2: Command byte 2 (sometimes doesn't follow the 11xx xxxx rule)
-				// byte n: More command bytes
-				// We will swallow the ping immediately following the broadcast command, but we'll catch it next time we're pinged not following a broadcast command
-				if(byte_count < CABBUS_BUFFER_SIZE)
-				{
-					cabBusRxBuffer[byte_count] = data;
-					byte_count++;
-				}
-			}
-			else
-			{
-				cabBusStatus &= ~CABBUS_STATUS_BROADCAST_CMD;
-				cabBusPktQueuePush(&cabBusRxQueue, cabBusRxBuffer, byte_count);
-			}
-		}
-		else
-		{
-			// Data response from someone else, ignore (but still count bytes)
-			byte_count++;
-		}
-    }
-*/
 }
 
 ISR(CABBUS_UART_DONE_INTERRUPT)
@@ -410,7 +377,7 @@ void cabBusInit(uint8_t addr, uint8_t enableXpressnet)
 #undef BAUD
 	}
 
-	cabBusAddress = addr;
+	myCabNumber = addr;
 
 	/* Enable USART receiver and transmitter and receive complete interrupt */
 	CABBUS_UART_CSR_B |= (_BV(CABBUS_RXCIE) | _BV(CABBUS_RXEN) | _BV(CABBUS_TXEN));
