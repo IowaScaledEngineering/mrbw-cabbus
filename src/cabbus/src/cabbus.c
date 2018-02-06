@@ -182,10 +182,6 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 			// Read here so we have the data for storing below if it wasn't already read above
 			data = CABBUS_UART_DATA;
 		}
-
-		// Store the byte
-		cabBusRxBuffer[byte_count] = data;
-		byte_count++;
 	}
 	else
 	{
@@ -271,11 +267,10 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 				cabBusRxBuffer[byte_count++] = 0;
 			}
 		}
-
-		// Store the byte
-		cabBusRxBuffer[byte_count] = data;
-		byte_count++;
 	}
+	// Store the byte
+	cabBusRxBuffer[byte_count] = data;
+	byte_count++;
 }
 
 ISR(CABBUS_UART_DONE_INTERRUPT)
