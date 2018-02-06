@@ -72,15 +72,21 @@ uint8_t enableFastTime = 0;
 
 uint8_t enableXpressnet = 0;
 
-#define COLLISON_LED_TIME   100;
-#define RESPONSE_LED_TIME   5;
-#define XBEE_RX_LED_TIME    5;
-#define PING_LED_TIME       2;
+// These are in centisecs
+#define RESPONSE_LED_TIME   5
+#define XBEE_RX_LED_TIME    5
+#define PING_LED_TIME       2
 
-uint8_t collisionTimer = 0;
+uint8_t mrbeeCollisionTimer = 0;
+uint8_t cabBuscollisionTimer = 0;
 uint8_t responseTimer = 0;
 uint8_t xbeeRxTimer = 0;
 uint8_t pingTimer = 0;
+
+// Thes are in decisecs
+#define COLLISON_LED_TIME   20
+#define BLINK_RATE          6
+uint8_t blink = 0;
 
 typedef enum
 {
@@ -182,9 +188,13 @@ void PktHandler(void)
 		return;
 
 	//*************** PACKET FILTER ***************
-	// Loopback Test - did we send it?  If so, we probably want to ignore it
-	if (rxBuffer[MRBUS_PKT_SRC] == mrbus_dev_addr) 
+	// Since this is MRBee, we don't get copies of our own transmissions
+	// Therefore, if the incoming packet has our address as the source, someone else is out there talking
+	if (rxBuffer[MRBUS_PKT_SRC] == mrbus_dev_addr)
+	{
+		mrbeeCollisionTimer = COLLISON_LED_TIME;
 		goto	PktIgnore;
+	}
 
 	// Destination Test - is this for us or broadcast?  If not, ignore
 	if (0xFF != rxBuffer[MRBUS_PKT_DEST] && mrbus_dev_addr != rxBuffer[MRBUS_PKT_DEST]) 
@@ -511,11 +521,19 @@ ISR(TIMER0_COMPA_vect)
 	{
 		ticks = 0;
 		decisecs++;
+		
+		if(mrbeeCollisionTimer)
+			mrbeeCollisionTimer--;
+
+		if(cabBuscollisionTimer)
+			cabBuscollisionTimer--;
+		
+		if(blink)
+			blink--;
+		else
+			blink = BLINK_RATE;
 	}
 	
-	if(collisionTimer)
-		collisionTimer--;
-
 	if(responseTimer)
 		responseTimer--;
 
@@ -720,33 +738,43 @@ int main(void)
 		{
 			pingTimer = PING_LED_TIME;
 		}
-		if(pingTimer)
-			setLed(PING);
-		else
-			clearLed(PING);
 
 		if(cabBusResponse())
 		{
 			responseTimer = RESPONSE_LED_TIME;
 		}
+
+		if(cabBusCollision())
+		{
+			cabBuscollisionTimer = COLLISON_LED_TIME;
+		}
+
+		if(pingTimer)
+			setLed(PING);
+		else
+			clearLed(PING);
+
 		if(responseTimer)
 			setLed(RESPONSE);
 		else
 			clearLed(RESPONSE);
 
-		if(cabBusCollision())
-		{
-			collisionTimer = COLLISON_LED_TIME;
-		}
-		if(collisionTimer)
-			setLed(COLLISON);
-		else
-			clearLed(COLLISON);
-
 		if(xbeeRxTimer)
 			setLed(XBEE_RX);
 		else
 			clearLed(XBEE_RX);
+
+		if(cabBuscollisionTimer)
+			setLed(COLLISON);
+		else if(mrbeeCollisionTimer)
+		{
+			if(blink / (BLINK_RATE / 2))
+				setLed(COLLISON);
+			else
+				clearLed(COLLISON);
+		}
+		else
+			clearLed(COLLISON);
 
 	}
 
