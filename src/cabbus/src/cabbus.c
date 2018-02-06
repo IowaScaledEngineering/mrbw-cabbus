@@ -187,9 +187,9 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 		cabBusRxBuffer[byte_count] = data;
 		byte_count++;
 	}
-    else
-    {
-    	// Cab Bus
+	else
+	{
+		// Cab Bus
 		data = CABBUS_UART_DATA;
 
 		// Dumb Cab:
