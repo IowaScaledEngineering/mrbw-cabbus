@@ -139,7 +139,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 		if(CABBUS_UART_CSR_B & _BV(CABBUS_RXB8))
 		{
 			// Bit 9 set, Address byte
-			data = CABBUS_UART_DATA;
+			data = CABBUS_UART_DATA;  // Must be read after reading RXB8 bits
 			uint8_t address = data & 0x1F;
 			if( (!parity_even_bit(data)) && (0x00 == (data & 0x60)) && (address == myCabNumber) )
 			{
@@ -150,7 +150,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 			else if( (!parity_even_bit(data)) && (0x40 == (data & 0x60)) )
 			{
 				// Normal inquiry
-				if(address == myCabNumber)
+				if(myCabNumber == address)
 				{
 					// It's for us, so respond if anything is pending
 					cabBusStatus |= CABBUS_STATUS_PING_RECEIVED;
@@ -160,12 +160,32 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 						startTxTimer();
 					}
 				}
+				
+				// If the previously stored data was a ping response from our address, signal a collision
+				//   Only look at message with an actual response (byte_count > 1)
+				if((myCabNumber == (cabBusRxBuffer[0] & 0x1F)) && (byte_count > 1))
+				{
+					if(!(cabBusStatus & CABBUS_STATUS_TRANSMITTING))
+						cabBusStatus |= CABBUS_STATUS_COLLISION_DETECTED;
+				}
+
+				// Clear the flag here on every new ping
+				// It will get set later once enableTransmitter is called
+				cabBusStatus &= ~CABBUS_STATUS_TRANSMITTING;
+
+				// Reset byte_count so the current data byte gets stored in the correct (index = 0) spot
+				byte_count = 0;
 			}
 		}
 		else
 		{
-			data = CABBUS_UART_DATA;  // Clear the data register and discard
+			// Read here so we have the data for storing below if it wasn't already read above
+			data = CABBUS_UART_DATA;
 		}
+
+		// Store the byte
+		cabBusRxBuffer[byte_count] = data;
+		byte_count++;
 	}
     else
     {
@@ -226,7 +246,7 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 
 				// If the previously stored data was a ping response from our address, signal a collision
 				//   Only look at message with an actual response (byte_count > 1)
-				if(myCabNumber == (cabBusRxBuffer[0] & 0x3F) && (byte_count > 1))
+				if((myCabNumber == (cabBusRxBuffer[0] & 0x3F)) && (byte_count > 1))
 				{
 					if(!(cabBusStatus & CABBUS_STATUS_TRANSMITTING))
 						cabBusStatus |= CABBUS_STATUS_COLLISION_DETECTED;
