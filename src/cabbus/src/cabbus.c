@@ -271,6 +271,8 @@ ISR(CABBUS_UART_RX_INTERRUPT)
 	// Store the byte
 	cabBusRxBuffer[byte_count] = data;
 	byte_count++;
+	if(byte_count >= CABBUS_BUFFER_SIZE)
+		byte_count = CABBUS_BUFFER_SIZE - 1;
 }
 
 ISR(CABBUS_UART_DONE_INTERRUPT)
