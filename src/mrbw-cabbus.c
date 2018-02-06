@@ -196,8 +196,9 @@ void PktHandler(void)
 		goto	PktIgnore;
 	}
 
-	// Destination Test - is this for us or broadcast?  If not, ignore
-	if (0xFF != rxBuffer[MRBUS_PKT_DEST] && mrbus_dev_addr != rxBuffer[MRBUS_PKT_DEST]) 
+	// Destination Test - is this for us?  If not, ignore.
+	// Also ignore broadcast packets, which is a little unconventional for MRBus nodes.  This helps avoid unrelated MRBus packets from causing havoc here.
+	if (mrbus_dev_addr != rxBuffer[MRBUS_PKT_DEST])
 		goto	PktIgnore;
 	
 	// CRC16 Test - is the packet intact?
