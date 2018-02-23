@@ -108,6 +108,9 @@ size:
 flash: $(BASE_NAME).hex
 	$(AVRDUDE) -U flash:w:$(BASE_NAME).hex:i
 
+firmware:
+	$(AVRDUDE) -U flash:w:$(HEX):i
+
 # rule for deleting dependent files (those which can be built by Make):
 clean:
 	rm -f $(BASE_NAME).hex $(BASE_NAME).lst $(BASE_NAME).obj $(BASE_NAME).cof $(BASE_NAME).list $(BASE_NAME).map $(BASE_NAME).eep.hex $(BASE_NAME).elf $(BASE_NAME).s $(OBJS) *.o *.tgz *~
