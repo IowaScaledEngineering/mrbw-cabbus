@@ -745,7 +745,7 @@ device=RESISTOR
 T 46400 50300 5 10 1 1 0 1 1
 refdes=R3
 T 46400 50100 5 10 1 1 0 1 1
-value=2k
+value=330
 T 46300 49800 5 10 0 0 90 0 1
 footprint=0805
 }
@@ -756,7 +756,7 @@ device=RESISTOR
 T 55200 57400 5 10 1 1 0 1 1
 refdes=R1
 T 55200 57200 5 10 1 1 0 1 1
-value=6.2k
+value=750
 T 55100 56900 5 10 0 0 90 0 1
 footprint=0805
 }
