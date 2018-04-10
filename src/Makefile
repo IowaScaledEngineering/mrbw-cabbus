@@ -28,7 +28,8 @@
 BASE_NAME = mrbw-cabbus
 
 #PROGRAMMER_TYPE=avrispmkii
-PROGRAMMER_TYPE=usbtiny
+#PROGRAMMER_TYPE=usbtiny
+PROGRAMMER_TYPE=iseavrprog
 PROGRAMMER_PORT=usb
 
 MRBUS_LIB=./mrbus/src
@@ -53,8 +54,8 @@ DEFINES := $(DEBUG) -D$(GITREV) -DENABLE_WATCHDOG -DHWREV_MAJOR=1 -DHWREV_MINOR=
 SRCS = $(BASE_NAME).c $(MRBUS_LIB)/mrbee-avr.c $(MRBUS_LIB)/mrbus-crc.c $(MRBUS_LIB)/mrbus-queue.c $(CABBUS_LIB)/cabbus.c $(CABBUS_LIB)/cabbus-queue.c $(CABBUS_LIB)/cabbus-cache.c
 INCS = $(MRBUS_LIB)/mrbee.h $(MRBUS_LIB)/mrbee-avr.h
 
-AVRDUDE = avrdude -P $(PROGRAMMER_PORT) -c $(PROGRAMMER_TYPE) -p $(DEVICE) -B1 -F
-AVRDUDE_SLOW = avrdude -P $(PROGRAMMER_PORT) -c $(PROGRAMMER_TYPE) -p $(DEVICE) -B32 -F
+AVRDUDE = avrdude -P $(PROGRAMMER_PORT) -c $(PROGRAMMER_TYPE) -p $(DEVICE) -B1
+AVRDUDE_SLOW = avrdude -P $(PROGRAMMER_PORT) -c $(PROGRAMMER_TYPE) -p $(DEVICE) -B32
 
 OBJS = ${SRCS:.c=.o}
 INCLUDES = -I. -I$(MRBUS_LIB) -I$(CABBUS_LIB)
