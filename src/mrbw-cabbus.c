@@ -570,6 +570,10 @@ void init(void)
 	PORTB &= ~(_BV(PB0) | _BV(PB1) | _BV(PB2) | _BV(PB3));
 	DDRB |= (_BV(PB0) | _BV(PB1) | _BV(PB2) | _BV(PB3));
 
+	// Configure test mode input (short pin 4 and 6 of AVR programming connector to enable)
+	DDRB &= ~_BV(PB5);   // Set PB5 (MOSI) as input
+	PORTB |= _BV(PB5);  // Turn on PB5 pull-up
+
 	initialize100HzTimer();
 }
 
@@ -750,32 +754,70 @@ int main(void)
 			cabBuscollisionTimer = COLLISON_LED_TIME;
 		}
 
-		if(pingTimer)
-			setLed(PING);
-		else
-			clearLed(PING);
-
-		if(responseTimer)
-			setLed(RESPONSE);
-		else
-			clearLed(RESPONSE);
-
-		if(xbeeRxTimer)
-			setLed(XBEE_RX);
-		else
-			clearLed(XBEE_RX);
-
-		if(cabBuscollisionTimer)
-			setLed(COLLISON);
-		else if(mrbeeCollisionTimer)
+		
+		// Set/clear LEDs
+		if(PINB & _BV(PB5))
 		{
-			if(blink / (BLINK_RATE / 2))
+			if(pingTimer)
+				setLed(PING);
+			else
+				clearLed(PING);
+
+			if(responseTimer)
+				setLed(RESPONSE);
+			else
+				clearLed(RESPONSE);
+
+			if(xbeeRxTimer)
+				setLed(XBEE_RX);
+			else
+				clearLed(XBEE_RX);
+
+			if(cabBuscollisionTimer)
 				setLed(COLLISON);
+			else if(mrbeeCollisionTimer)
+			{
+				if(blink / (BLINK_RATE / 2))
+					setLed(COLLISON);
+				else
+					clearLed(COLLISON);
+			}
 			else
 				clearLed(COLLISON);
 		}
 		else
-			clearLed(COLLISON);
+		{
+			// Test Mode
+			uint8_t sw1 = ~PINA;
+			uint8_t sw2 = reverseBits(~PINC);
+			if((0b00100000 == sw2) && (0b00000100 == sw1))  // Default: Cab Bus mode, FT enabled, Base = 0, Cab = 4
+			{
+				setLed(COLLISON);
+			}
+			else
+			{
+				clearLed(COLLISON);
+			}
+
+			if((0 == PINA) && (0 == PINC))
+			{
+				setLed(RESPONSE);
+				clearLed(XBEE_RX);
+				clearLed(PING);
+			}
+			else if((0xFF == PINA) && (0xFF == PINC))
+			{
+				clearLed(RESPONSE);
+				clearLed(XBEE_RX);
+				setLed(PING);
+			}
+			else
+			{
+				clearLed(RESPONSE);
+				setLed(XBEE_RX);
+				clearLed(PING);
+			}
+		}
 
 	}
 
