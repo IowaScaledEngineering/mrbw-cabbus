@@ -367,7 +367,7 @@ void PktHandler(void)
 				{
 					cabBusBuffer[0] = 0xE4;  // Speed & Direction, 128 speed steps
 					cabBusBuffer[1] = 0x13;
-					cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+					cabBusBuffer[2] = (c.locoAddress >> 8) & 0xFF;  // Locomotive Address
 					cabBusBuffer[3] = c.locoAddress & 0xFF;
 					cabBusBuffer[4] = c.speedDirection;
 					cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
@@ -391,7 +391,7 @@ void PktHandler(void)
 			{
 				cabBusBuffer[0] = 0xE4;  // Function Group 1
 				cabBusBuffer[1] = 0x20;
-				cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+				cabBusBuffer[2] = (c.locoAddress >> 8) & 0xFF;  // Locomotive Address
 				cabBusBuffer[3] = c.locoAddress & 0xFF;
 				cabBusBuffer[4] = c.functionGroup1;  // F0 F4 F3 F2 F1
 				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
@@ -412,7 +412,7 @@ void PktHandler(void)
 			{
 				cabBusBuffer[0] = 0xE4;  // Function Group 2
 				cabBusBuffer[1] = 0x21;
-				cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+				cabBusBuffer[2] = (c.locoAddress >> 8) & 0xFF;  // Locomotive Address
 				cabBusBuffer[3] = c.locoAddress & 0xFF;
 				cabBusBuffer[4] = c.functionGroup2;  // F8 F7 F6 F5
 				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
@@ -433,7 +433,7 @@ void PktHandler(void)
 			{
 				cabBusBuffer[0] = 0xE4;  // Function Group 3
 				cabBusBuffer[1] = 0x22;
-				cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+				cabBusBuffer[2] = (c.locoAddress >> 8) & 0xFF;  // Locomotive Address
 				cabBusBuffer[3] = c.locoAddress & 0xFF;
 				cabBusBuffer[4] = c.functionGroup3;  // F12 F11 F10 F9
 				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
@@ -454,7 +454,7 @@ void PktHandler(void)
 			{
 				cabBusBuffer[0] = 0xE4;  // Function Group 4 (http://www.opendcc.net/elektronik/opendcc/xpressnet_commands_e.html)
 				cabBusBuffer[1] = 0x23;
-				cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+				cabBusBuffer[2] = (c.locoAddress >> 8) & 0xFF;  // Locomotive Address
 				cabBusBuffer[3] = c.locoAddress & 0xFF;
 				cabBusBuffer[4] = c.functionGroup4;  // F20 - F13
 				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
@@ -475,7 +475,7 @@ void PktHandler(void)
 			{
 				cabBusBuffer[0] = 0xE4;  // Function Group 5 (http://www.opendcc.net/elektronik/opendcc/xpressnet_commands_e.html)
 				cabBusBuffer[1] = 0x28;
-				cabBusBuffer[2] = (c.locoAddress >> 8);  // Locomotive Address
+				cabBusBuffer[2] = (c.locoAddress >> 8) & 0xFF;  // Locomotive Address
 				cabBusBuffer[3] = c.locoAddress & 0xFF;
 				cabBusBuffer[4] = c.functionGroup5;  // F28 - F21
 				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
