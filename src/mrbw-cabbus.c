@@ -687,7 +687,7 @@ int main(void)
 		}
 
 		// Handle any incoming Cab Bus data
-		if (cabBusPktQueueDepth(&cabBusRxQueue))
+		if(!enableXpressnet && cabBusPktQueueDepth(&cabBusRxQueue))
 		{
 			uint8_t rxBuffer[CABBUS_BUFFER_SIZE];
 
