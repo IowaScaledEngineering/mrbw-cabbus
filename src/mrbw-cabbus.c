@@ -183,6 +183,8 @@ void PktHandler(void)
 	uint8_t i;
 	uint8_t rxBuffer[MRBUS_BUFFER_SIZE];
 	uint8_t txBuffer[MRBUS_BUFFER_SIZE];
+	
+	static uint16_t lastLocoAddress = 0;
 
 	if (0 == mrbusPktQueuePop(&mrbeeRxQueue, rxBuffer, sizeof(rxBuffer)))
 		return;
@@ -336,12 +338,15 @@ void PktHandler(void)
 
 		uint8_t delta = compareCabData(rxBuffer[MRBUS_PKT_SRC], &c);
 
-		// Policy for sending Cab Bus updates:
+		// Policy for sending updates:
 		//    1) Locomotive address changed.  This throttle was controlling a different locomotive before, so update everything.
 		//    2) Certain items have changed since last time.  Update only those items that changed.
-		//    3) No changes since last time.  Update speed and direction.
+		//    3) No changes since last time.  Update speed and direction only.
+		//    4) Cab Bus Only: If the loco address of a function packet is different than the last sent speed/direction, send speed/direction
+		//         - Addresses caching issue with consist address on Smart Cabs
 
-		if(IS_LOCO_ADDRESS_CHANGED(delta) || IS_SPEED_DIRECTION_CHANGED(delta) || (0 == delta))
+		if( IS_LOCO_ADDRESS_CHANGED(delta) || IS_SPEED_DIRECTION_CHANGED(delta) || (0 == delta) ||
+			(!enableXpressnet && IS_FN_GROUP_CHANGED(delta) && (lastLocoAddress != c.locoAddress)) )
 		{
 			// Send Speed/Direction
 			uint8_t speed = c.speedDirection & 0x7F;
@@ -376,6 +381,7 @@ void PktHandler(void)
 					cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
 				}
 			}
+			lastLocoAddress = c.locoAddress;
 		}
 
 		// Send function states
