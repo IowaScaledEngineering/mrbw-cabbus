@@ -31,6 +31,8 @@ typedef struct
 
 uint8_t compareCabData(uint8_t addr, CabData* c);
 void updateCabData(uint8_t addr, CabData* c);
+uint16_t getCabBusLocoAddress(uint8_t addr);
+uint8_t getCabBusSpeedDirection(uint8_t addr);
 
 #endif
 

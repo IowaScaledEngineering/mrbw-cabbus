@@ -33,6 +33,11 @@ LICENSE:
 
 #define LOCO_ADDRESS_SHORT 0x8000
 
+#define TIMEOUT_SECONDS 60
+uint8_t mrbusTimer[256] = { 0 };
+
+uint16_t lastLocoAddress = 0;
+
 #define MRBUS_TX_BUFFER_DEPTH 16
 #define MRBUS_RX_BUFFER_DEPTH 32
 
@@ -177,6 +182,42 @@ void createTimePacket(uint8_t *buf)
 	buf[17] = 0;
 }
 
+void sendSpeedDirection(uint16_t locoAddress, uint8_t speedDirection)
+{
+	uint8_t speed = speedDirection & 0x7F;
+	uint8_t direction = speedDirection & 0x80;
+	if(!enableXpressnet && (1 == speed))
+	{
+		// E-stop for Cab Bus only (XpressNet handles it as part of speed & direction)
+		cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
+		cabBusBuffer[1] = locoAddress & 0x7F;
+		cabBusBuffer[2] = (direction) ? 0x06 : 0x05;  // Direction for E-stop
+		cabBusBuffer[3] = 0;
+		cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+	}
+	else
+	{
+		// Speed and direction
+		if(enableXpressnet)
+		{
+			cabBusBuffer[0] = 0xE4;  // Speed & Direction, 128 speed steps
+			cabBusBuffer[1] = 0x13;
+			cabBusBuffer[2] = (locoAddress >> 8) & 0xFF;  // Locomotive Address
+			cabBusBuffer[3] = locoAddress & 0xFF;
+			cabBusBuffer[4] = speedDirection;
+			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
+		}
+		else
+		{
+			cabBusBuffer[0] = (locoAddress >> 7) & 0x7F;  // Locomotive Address
+			cabBusBuffer[1] = locoAddress & 0x7F;
+			cabBusBuffer[2] = (direction) ? 0x04 : 0x03;  // Direction for 128 speed step
+			cabBusBuffer[3] = speed ? speed-1 : 0;  // Speed
+			cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
+		}
+	}
+	lastLocoAddress = locoAddress;
+}
 void PktHandler(void)
 {
 	uint16_t crc = 0;
@@ -184,8 +225,6 @@ void PktHandler(void)
 	uint8_t rxBuffer[MRBUS_BUFFER_SIZE];
 	uint8_t txBuffer[MRBUS_BUFFER_SIZE];
 	
-	static uint16_t lastLocoAddress = 0;
-
 	if (0 == mrbusPktQueuePop(&mrbeeRxQueue, rxBuffer, sizeof(rxBuffer)))
 		return;
 
@@ -290,6 +329,8 @@ void PktHandler(void)
 		CabData c;
 		xbeeRxTimer = XBEE_RX_LED_TIME;
 
+		mrbusTimer[rxBuffer[MRBUS_PKT_SRC]] = TIMEOUT_SECONDS;
+
 		c.locoAddress = ((uint16_t)rxBuffer[6] << 8) + rxBuffer[7];
 		if(enableXpressnet)
 		{
@@ -349,39 +390,7 @@ void PktHandler(void)
 			(!enableXpressnet && IS_FN_GROUP_CHANGED(delta) && (lastLocoAddress != c.locoAddress)) )
 		{
 			// Send Speed/Direction
-			uint8_t speed = c.speedDirection & 0x7F;
-			uint8_t direction = c.speedDirection & 0x80;
-			if(!enableXpressnet && (1 == speed))
-			{
-				// E-stop for Cab Bus only (XpressNet handles it as part of speed & direction)
-				cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
-				cabBusBuffer[1] = c.locoAddress & 0x7F;
-				cabBusBuffer[2] = (direction) ? 0x06 : 0x05;  // Direction for E-stop
-				cabBusBuffer[3] = 0;
-				cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
-			}
-			else
-			{
-				// Speed and direction
-				if(enableXpressnet)
-				{
-					cabBusBuffer[0] = 0xE4;  // Speed & Direction, 128 speed steps
-					cabBusBuffer[1] = 0x13;
-					cabBusBuffer[2] = (c.locoAddress >> 8) & 0xFF;  // Locomotive Address
-					cabBusBuffer[3] = c.locoAddress & 0xFF;
-					cabBusBuffer[4] = c.speedDirection;
-					cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 5);
-				}
-				else
-				{
-					cabBusBuffer[0] = (c.locoAddress >> 7) & 0x7F;  // Locomotive Address
-					cabBusBuffer[1] = c.locoAddress & 0x7F;
-					cabBusBuffer[2] = (direction) ? 0x04 : 0x03;  // Direction for 128 speed step
-					cabBusBuffer[3] = speed ? speed-1 : 0;  // Speed
-					cabBusPktQueuePush(&cabBusTxQueue, cabBusBuffer, 4);
-				}
-			}
-			lastLocoAddress = c.locoAddress;
+			sendSpeedDirection(c.locoAddress, c.speedDirection);
 		}
 
 		// Send function states
@@ -667,9 +676,26 @@ int main(void)
 			// Send "I'm here" message every second so throttles know communication is active
 			createVersionPacket(0xFF, mrbusTxBuffer);
 			mrbusPktQueuePush(&mrbeeTxQueue, mrbusTxBuffer, mrbusTxBuffer[MRBUS_PKT_LEN]);
+			
+			// Also update timeout timers
+			uint8_t addr = 0;
+			do
+			{
+				if(mrbusTimer[addr])
+				{
+					mrbusTimer[addr]--;
+					if(0 == mrbusTimer[addr])
+					{
+						// Send stop if timer is zero
+						sendSpeedDirection(getCabBusLocoAddress(addr), getCabBusSpeedDirection(addr) & 0x80);
+					}
+				}
+				addr++;
+			} while(addr);
+			
 			ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 			{
-				decisecs = 0;
+				decisecs -= 10;
 			}
 		}
 

@@ -58,3 +58,13 @@ void updateCabData(uint8_t addr, CabData* c)
 	cache[addr] = *c;
 }
 
+uint16_t getCabBusLocoAddress(uint8_t addr)
+{
+	return cache[addr].locoAddress;
+}
+
+uint8_t getCabBusSpeedDirection(uint8_t addr)
+{
+	return cache[addr].speedDirection;
+}
+
