@@ -42,7 +42,7 @@ FUSE_L  = 0xFF
 FUSE_H  = 0xD1
 FUSE_E  = 0xFC
 
-GITREV := 'GIT_REV=0x$(shell git rev-parse --short=6 HEAD)L'
+GITREV := $(shell git rev-parse --short=6 HEAD)
 
 #DEBUG = -DDEBUG
 
@@ -50,7 +50,7 @@ MRBEE_DEFINES = -DMRBEE -DMRBEE_IGNORE_FLOW -DMRBEE_ATMEGA_USART1
 MRBEE_PINS = -DMRBEE_CTS=4 -DMRBEE_RTS=5
 CABBUS_PINS =  -DCABBUS_TXE=6
 
-DEFINES := $(DEBUG) -D$(GITREV) -DENABLE_WATCHDOG -DHWREV_MAJOR=1 -DHWREV_MINOR=0 $(MRBEE_DEFINES) $(MRBEE_PINS) $(CABBUS_PINS)
+DEFINES := $(DEBUG) -DGIT_REV=0x$(GITREV)L -DENABLE_WATCHDOG -DHWREV_MAJOR=1 -DHWREV_MINOR=0 $(MRBEE_DEFINES) $(MRBEE_PINS) $(CABBUS_PINS)
 SRCS = $(BASE_NAME).c $(MRBUS_LIB)/mrbee-avr.c $(MRBUS_LIB)/mrbus-crc.c $(MRBUS_LIB)/mrbus-queue.c $(CABBUS_LIB)/cabbus.c $(CABBUS_LIB)/cabbus-queue.c $(CABBUS_LIB)/cabbus-cache.c
 INCS = $(MRBUS_LIB)/mrbee.h $(MRBUS_LIB)/mrbee-avr.h
 
@@ -84,6 +84,9 @@ help:
 	@echo "make terminal... open up avrdude terminal"
 
 hex: $(BASE_NAME).hex
+	@echo;
+	@echo GIT rev: $(GITREV);
+	@echo;
 
 setup:
 	git submodule init
@@ -109,6 +112,9 @@ size:
 # rule for uploading firmware:
 flash: $(BASE_NAME).hex
 	$(AVRDUDE) -U flash:w:$(BASE_NAME).hex:i
+	@echo;
+	@echo GIT rev: $(GITREV);
+	@echo;
 
 firmware:
 	$(AVRDUDE) -U flash:w:$(HEX):i
