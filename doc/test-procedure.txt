@@ -1,0 +1,19 @@
+Program:
+make fuse firmware HEX=hex/mrbw-cabbus-ceaa9c.hex
+
+Test:
+Remove tape on DIP switches
+Black out numbers on DIP switches
+Power module using RJ11 adapter and 12V supply
+Attach test mode jumper (pins 4-6 of AVR header)
+	Check RESPONSE LED on
+Push all DIP switch down
+	Check PING LED on
+Set default state (FT on, CAB #4 on)
+	Check XBEE RX and COLLISION LEDs on
+Remove test mode jumper
+
+Insert XBee
+
+Connect to NCE system
+Verify communication from throttle to locomotive
