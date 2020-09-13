@@ -1277,7 +1277,7 @@ Element["" "TERMBLK2_200MIL" "J1" "unknown" 220.00mil 550.00mil 30.00mil -20.00m
 
 	)
 
-Element["" "SOD123T" "D11" "unknown" 580.00mil 185.00mil 120.00mil 40.00mil 1 100 ""]
+Element["" "SOD123T" "D11" "unknown" 580.00mil 185.00mil 115.00mil 40.00mil 1 100 ""]
 (
 	Pad[-65.00mil -10.00mil -65.00mil 10.00mil 55.00mil 20.00mil 61.00mil "1" "1" "square"]
 	Pad[65.00mil -10.00mil 65.00mil 10.00mil 55.00mil 0.0000 61.00mil "2" "2" "square"]
@@ -1289,7 +1289,7 @@ Element["" "SOD123T" "D11" "unknown" 580.00mil 185.00mil 120.00mil 40.00mil 1 10
 
 	)
 
-Element["" "SOD123T" "D10" "unknown" 580.00mil 330.00mil 120.00mil 45.00mil 1 100 ""]
+Element["" "SOD123T" "D10" "unknown" 580.00mil 330.00mil 115.00mil 45.00mil 1 100 ""]
 (
 	Pad[-65.00mil -10.00mil -65.00mil 10.00mil 55.00mil 20.00mil 61.00mil "1" "1" "square"]
 	Pad[65.00mil -10.00mil 65.00mil 10.00mil 55.00mil 0.0000 61.00mil "2" "2" "square"]
@@ -1605,7 +1605,7 @@ Element["" "0805" "C2A" "22uF" 1260.00mil 635.00mil -171.93mil -31.50mil 0 100 "
 
 	)
 
-Element["" "SOT26" "U3" "unknown" 945.00mil 355.00mil -100.00mil 10.00mil 0 100 ""]
+Element["" "SOT26" "U3" "unknown" 945.00mil 355.00mil -105.00mil 10.00mil 0 100 ""]
 (
 	Pad[-8.00mil 0.0000 8.00mil 0.0000 24.00mil 30.00mil 30.00mil "FB" "1" "square"]
 	Pad[-8.00mil 39.00mil 8.00mil 39.00mil 24.00mil 30.00mil 30.00mil "EN" "2" "square"]
@@ -1620,7 +1620,7 @@ Element["" "SOT26" "U3" "unknown" 945.00mil 355.00mil -100.00mil 10.00mil 0 100 
 
 	)
 
-Element["" "0805" "C13" "0.1uF" 985.00mil 265.00mil -155.00mil -30.00mil 0 100 ""]
+Element["" "0805" "C13" "0.1uF" 985.00mil 265.00mil -170.00mil -30.00mil 0 100 ""]
 (
 	Pad[-35.43mil -3.93mil -35.43mil 3.93mil 51.18mil 20.00mil 57.18mil "1" "1" "square"]
 	Pad[35.43mil -3.93mil 35.43mil 3.93mil 51.18mil 0.0000 57.18mil "2" "2" "square"]
