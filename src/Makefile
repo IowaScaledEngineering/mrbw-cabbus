@@ -36,7 +36,7 @@ MRBUS_LIB=./mrbus/src
 CABBUS_LIB=./cabbus/src
 
 # ATmega1284 20MHz @ 5V
-DEVICE  = atmega1284p
+DEVICE  = atmega1284
 F_CPU   = 20000000  # Hz
 FUSE_L  = 0xFF
 FUSE_H  = 0xD1
